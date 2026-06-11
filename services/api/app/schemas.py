@@ -207,8 +207,9 @@ class ActivityRead(BaseModel):
     title: str
     sub: str
     amount_paise: int
-    kind: Literal["sale", "credit", "settle"]
+    kind: Literal["sale", "credit", "settle", "advance", "salary"]
     at: datetime
+    bill_id: str | None = None  # tap → invoice summary, when this row has an invoice
 
 
 # ── khata ──

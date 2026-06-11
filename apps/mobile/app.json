@@ -10,7 +10,8 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSContactsUsageDescription": "Claro suggests customers and staff from your contacts so you can bill and remind them faster."
+        "NSContactsUsageDescription": "Claro suggests customers and staff from your contacts so you can bill and remind them faster.",
+        "NSPhotoLibraryUsageDescription": "Claro lets you attach your own UPI QR image to a payment method."
       }
     },
     "android": {

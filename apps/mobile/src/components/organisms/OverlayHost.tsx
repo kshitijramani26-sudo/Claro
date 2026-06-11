@@ -2,6 +2,9 @@ import { CreateBillOverlay } from './CreateBillOverlay';
 import { ActivityOverlay } from './ActivityOverlay';
 import { CustomerDetailOverlay } from './CustomerDetailOverlay';
 import { StaffDetailOverlay } from './StaffDetailOverlay';
+import { InvoiceSummaryOverlay } from './InvoiceSummaryOverlay';
+import { SearchOverlay } from './SearchOverlay';
+import { CustomerActivityOverlay } from './CustomerActivityOverlay';
 import { AddCreditSheet, AddInventorySheet, AddStaffSheet } from './AddSheets';
 import { useAppStore } from '@/state/store';
 
@@ -20,6 +23,12 @@ export function OverlayHost() {
       return <CustomerDetailOverlay />;
     case 'staffDetail':
       return <StaffDetailOverlay />;
+    case 'invoice':
+      return <InvoiceSummaryOverlay />;
+    case 'search':
+      return <SearchOverlay />;
+    case 'customerActivity':
+      return <CustomerActivityOverlay />;
     case 'addCredit':
       return <AddCreditSheet />;
     case 'addInventory':

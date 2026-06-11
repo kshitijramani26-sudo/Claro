@@ -1,9 +1,8 @@
-import { Linking, ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 import { useState } from 'react';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { OverlayShell } from './OverlayShell';
 import { InvoiceCard } from './InvoiceCard';
+import { ScanPayOverlay } from './ScanPayOverlay';
 import { Card } from '@/components/atoms/Card';
 import { Sym } from '@/components/atoms/Icon';
 import { Tap } from '@/components/atoms/Tap';
@@ -15,14 +14,15 @@ import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { BASE_URL, getAuthToken } from '@/lib/http';
 import { formatINR } from '@/lib/format';
 import { previewBill } from '@/lib/gstPreview';
+import { buildUpiUri } from '@/lib/upi';
+import { sharePdfFile, shareWhatsAppInvoice } from '@/lib/invoiceShare';
 import { GST_STATES, stateName } from '@/lib/states';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, tnum } from '@/theme/typography';
-import { cbTotal, useAppStore, type PayMode } from '@/state/store';
+import { cbTotal, cbDiscountRupees, useAppStore, type PayMode } from '@/state/store';
 import type { BillResult, UpiInfo } from '@/data/types';
 import type { SymbolName } from '@/lib/icons';
 
@@ -48,9 +48,11 @@ export function CreateBillOverlay() {
   const flashToast = useAppStore((s) => s.flashToast);
   const refresh = useAppStore((s) => s.refresh);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [discountFocused, setDiscountFocused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<BillResult | null>(null);
   const [savedUpi, setSavedUpi] = useState<UpiInfo | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const { data: staffList } = useApi(() => api.getStaff());
   const { data: catalogData } = useApi(() => api.getBillCatalog());
@@ -64,19 +66,24 @@ export function CreateBillOverlay() {
   const bizState = business?.stateCode ?? '27';
   const supplyState = cb.custState || bizState;
   const total = cbTotal(cb.items);
+  const discountRupees = cbDiscountRupees(cb, total);
 
   const totals = saved
     ? {
-        subtotal: saved.subtotal, taxable: saved.taxable, cgst: saved.cgst, sgst: saved.sgst,
-        igst: saved.igst, taxTotal: saved.taxTotal, grand: saved.grandTotal, taxKind: saved.taxKind,
+        subtotal: saved.subtotal, discount: saved.discount, taxable: saved.taxable, cgst: saved.cgst,
+        sgst: saved.sgst, igst: saved.igst, taxTotal: saved.taxTotal, grand: saved.grandTotal, taxKind: saved.taxKind,
       }
     : previewBill(
         cb.items.map((it) => ({ price: it.price, qty: it.qty, taxRateBps: it.taxRateBps, inclusive: it.inclusive })),
-        { gstMode, intra: supplyState === bizState },
+        { gstMode, intra: supplyState === bizState, discountRupees },
       );
 
   const defaultMethod = (methods ?? []).find((m) => m.isDefault) ?? (methods ?? [])[0];
   const chosenMethod = (methods ?? []).find((m) => m.id === cb.payMethodId) ?? defaultMethod;
+  const isUpi = cb.payMode === 'UPI';
+  const upiUri = chosenMethod
+    ? buildUpiUri({ vpa: chosenMethod.upiId, payeeName: business?.name ?? '', amountRupees: totals.grand, note: saved?.invoiceNo ?? 'Bill' })
+    : null;
 
   const confirm = async (): Promise<BillResult | null> => {
     if (saved) return saved;
@@ -95,10 +102,11 @@ export function CreateBillOverlay() {
         staffId: (staffList ?? []).find((m) => m.name === cb.staff)?.id ?? null,
         gstMode: gstRegistered ? gstMode : null,
         paymentMethodId: chosenMethod?.id ?? null,
+        discountPaise: Math.round(discountRupees * 100),
       });
       setSaved(bill);
       refresh();
-      api.getBillUpi(bill.id).then(setSavedUpi).catch(() => undefined);
+      if (API_MODE[cb.payMode] === 'UPI') api.getBillUpi(bill.id).then(setSavedUpi).catch(() => undefined);
       return bill;
     } catch (e) {
       flashToast((e as Error).message);
@@ -108,22 +116,24 @@ export function CreateBillOverlay() {
     }
   };
 
+  /** QR / UPI id details for PDF + WhatsApp (best-effort hosted link). */
+  const shareDetails = async (bill: BillResult) => {
+    const upi = bill.paymentMode === 'UPI' ? savedUpi ?? (await api.getBillUpi(bill.id).catch(() => null)) : null;
+    const link = await api.getBillShareLink(bill.id).catch(() => null);
+    return {
+      upiUri: upi?.deeplink ?? null,
+      qrPngBase64: upi?.qrPngBase64 ?? null,
+      upiId: upi?.upiId ?? chosenMethod?.upiId ?? null,
+      pdfUrl: link,
+      customerPhone: cb.custPhone || null,
+    };
+  };
+
   const sharePdf = async () => {
     const bill = await confirm();
     if (!bill) return;
     try {
-      const res = await fetch(`${BASE_URL}/bills/${bill.id}/pdf`, {
-        headers: { Authorization: `Bearer ${getAuthToken() ?? ''}` },
-      });
-      if (!res.ok) throw new Error('PDF failed');
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      const file = new File(Paths.cache, `${bill.invoiceNo}.pdf`);
-      file.write(bytes);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: 'application/pdf', dialogTitle: bill.invoiceNo });
-      } else {
-        flashToast('Invoice PDF saved');
-      }
+      await sharePdfFile(bill, business, await shareDetails(bill));
     } catch (e) {
       flashToast((e as Error).message);
     }
@@ -132,18 +142,8 @@ export function CreateBillOverlay() {
   const shareWhatsApp = async () => {
     const bill = await confirm();
     if (!bill) return;
-    const upi = savedUpi ?? (await api.getBillUpi(bill.id).catch(() => null));
-    const lines = [
-      `*${business?.name ?? 'Invoice'}* — ${bill.invoiceNo}`,
-      ...bill.items.map((i) => `${i.name} × ${i.qty} = ${formatINR(i.lineTotal)}`),
-      `*Total: ${formatINR(bill.grandTotal)}*`,
-      upi ? `Pay via UPI: ${upi.upiId}` : '',
-    ].filter(Boolean);
-    const text = encodeURIComponent(lines.join('\n'));
-    const digits = cb.custPhone.replace(/\D/g, '');
-    const target = digits.length >= 10 ? `91${digits.slice(-10)}` : '';
     try {
-      await Linking.openURL(`https://wa.me/${target}?text=${text}`);
+      await shareWhatsAppInvoice(bill, business, await shareDetails(bill));
     } catch {
       flashToast('Could not open WhatsApp');
     }
@@ -157,6 +157,7 @@ export function CreateBillOverlay() {
   // ---------- REVIEW STEP ----------
   if (cb.step === 'review') {
     return (
+      <>
       <OverlayShell
         title={saved ? 'Bill Saved' : 'Review & Share'}
         closeIcon="arrow_back"
@@ -189,12 +190,15 @@ export function CreateBillOverlay() {
             date={saved?.date ?? new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
             accent={theme.accent}
             totals={totals}
-            qrBase64={savedUpi?.qrPngBase64 ?? null}
+            showQr={isUpi}
+            upiUri={upiUri}
+            qrImageUrl={chosenMethod?.qrImageUrl ?? null}
             upiLabel={chosenMethod ? `${chosenMethod.label || chosenMethod.upiId}` : business?.name}
+            onQrPress={() => setScanOpen(true)}
           />
 
-          {/* Receive payment in — saved UPI/QR methods, default preselected */}
-          {(methods ?? []).length > 0 ? (
+          {/* Receive payment in — saved UPI/QR methods, default preselected (UPI bills) */}
+          {isUpi && (methods ?? []).length > 0 ? (
             <Card pad={16} style={{ marginTop: 14 }}>
               <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary, marginBottom: 10 }}>
                 Receive payment in
@@ -234,11 +238,25 @@ export function CreateBillOverlay() {
           ) : null}
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-            <OutlineButton label="PDF" icon="ios_share" onPress={sharePdf} style={{ flex: 1 }} fontSize={14} />
+            <OutlineButton label="PDF" icon="picture_as_pdf" onPress={sharePdf} style={{ flex: 1 }} fontSize={14} />
             <OutlineButton label="WhatsApp" iconNode={<WhatsAppIcon size={18} />} onPress={shareWhatsApp} style={{ flex: 1 }} fontSize={14} />
           </View>
         </ScrollView>
       </OverlayShell>
+      {scanOpen ? (
+        <ScanPayOverlay
+          shopName={business?.name ?? ''}
+          amountRupees={totals.grand}
+          methods={methods ?? []}
+          selectedId={chosenMethod?.id ?? null}
+          onSelect={(id) => cbSet({ payMethodId: id })}
+          onClose={() => setScanOpen(false)}
+          bg={theme.bg}
+          accent={theme.accent}
+          tile={theme.tile}
+        />
+      ) : null}
+      </>
     );
   }
 
@@ -251,8 +269,17 @@ export function CreateBillOverlay() {
       footer={
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textSecondary }}>Running total</Text>
-            <Money value={total} style={[{ fontFamily: Font.extrabold, fontSize: 30, letterSpacing: -0.8, color: Colors.textPrimary }, tnum]} />
+            <View>
+              <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textSecondary }}>
+                {discountRupees > 0 ? 'Payable' : 'Running total'}
+              </Text>
+              {discountRupees > 0 ? (
+                <Text style={[{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.success, marginTop: 1 }, tnum]}>
+                  {formatINR(total)} − {formatINR(discountRupees)} off
+                </Text>
+              ) : null}
+            </View>
+            <Money value={discountRupees > 0 ? totals.grand : total} style={[{ fontFamily: Font.extrabold, fontSize: 30, letterSpacing: -0.8, color: Colors.textPrimary }, tnum]} />
           </View>
           <PrimaryButton label="Review bill →" disabled={cb.items.length === 0} onPress={() => cbSet({ step: 'review' })} />
         </View>
@@ -390,6 +417,58 @@ export function CreateBillOverlay() {
             <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: theme.accent }}>Add to bill</Text>
           </Tap>
         </Card>
+
+        {/* Discount — flat ₹ or % of subtotal, applied to the whole bill (pre-tax) */}
+        {cb.items.length > 0 ? (
+          <Card pad={18} style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Sym name="sell" size={20} color={theme.accent} />
+                <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Add discount</Text>
+              </View>
+              <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
+                {(['amount', 'percent'] as const).map((kind) => {
+                  const active = cb.discountKind === kind;
+                  return (
+                    <Tap
+                      key={kind}
+                      onPress={() => cbSet({ discountKind: kind })}
+                      style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.chip, backgroundColor: active ? Colors.canvas : 'transparent' }}
+                    >
+                      <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
+                        {kind === 'amount' ? '₹' : '%'}
+                      </Text>
+                    </Tap>
+                  );
+                })}
+              </View>
+            </View>
+            <TextInput
+              value={cb.discountInput}
+              onChangeText={(t) => cbSet({ discountInput: t })}
+              placeholder={cb.discountKind === 'percent' ? 'Discount % (e.g. 10)' : 'Discount amount (₹)'}
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="number-pad"
+              onFocus={() => setDiscountFocused(true)}
+              onBlur={() => setDiscountFocused(false)}
+              style={{
+                height: 46, borderRadius: Radius.btnSm, borderWidth: 1.5,
+                borderColor: discountFocused ? theme.accent : Colors.border, backgroundColor: Colors.inputBg,
+                paddingHorizontal: 14, fontFamily: Font.semibold, fontSize: 14, color: Colors.textPrimary,
+              }}
+            />
+            {discountRupees > 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.success }}>
+                  You save {formatINR(discountRupees)}
+                </Text>
+                <Text style={[{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary }, tnum]}>
+                  Payable {formatINR(totals.grand)}
+                </Text>
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
 
         {/* GST mode (GST-registered shops only) + place of supply */}
         {gstRegistered ? (

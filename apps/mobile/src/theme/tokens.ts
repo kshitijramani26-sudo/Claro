@@ -55,6 +55,8 @@ export const KindTiles = {
   sale: { bg: '#E8F7F0', fg: '#16A34A' },
   credit: { bg: '#FDECF2', fg: '#E5484D' },
   settle: { bg: '#ECE7FE', fg: '#6D28D9' },
+  advance: { bg: '#FFF1E8', fg: '#F59E0B' },
+  salary: { bg: '#E8F2FF', fg: '#2563EB' },
 } as const;
 
 export const Radius = {
@@ -93,14 +95,20 @@ export const Shadows = {
   },
 } as const;
 
-/** Brand-tinted CTA shadow (`0 12px 26px -8px rgba(brand,0.45)`). */
+/**
+ * Brand-tinted CTA shadow (`0 12px 26px -8px rgba(brand,0.45)`).
+ * `elevation: 0` on purpose: Android renders elevation shadows in opaque
+ * black/grey (it ignores `shadowColor`), which produced the dark halo under
+ * the pinned button. iOS honours `shadowColor`, so the soft brand glow stays;
+ * Android simply gets a clean button that blends into the page gradient.
+ */
 export function ctaShadow(brand: string) {
   return {
     shadowColor: brand,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.45,
     shadowRadius: 13,
-    elevation: 8,
+    elevation: 0,
   } as const;
 }
 

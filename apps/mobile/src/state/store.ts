@@ -20,7 +20,10 @@ export type OverlayName =
   | 'staffDetail'
   | 'addCredit'
   | 'addInventory'
-  | 'addStaff';
+  | 'addStaff'
+  | 'invoice'
+  | 'search'
+  | 'customerActivity';
 
 export type PayMode = 'Cash' | 'UPI' | 'Credit';
 
@@ -49,6 +52,10 @@ export interface AppState {
   overlay: OverlayName;
   selCustomer: string | null;
   selStaff: string | null;
+  /** Bill id for the read-only invoice overlay. */
+  selBill: string | null;
+  /** Customer whose full activity page is open. */
+  selCustomerActivity: { id: string; name: string } | null;
   presence: Record<string, boolean>;
   cb: {
     items: BillItem[];
@@ -69,6 +76,10 @@ export interface AppState {
     custState: string;
     /** Chosen "Receive payment in" method; null = business default. */
     payMethodId: string | null;
+    /** Bill-level discount: a flat ₹ amount or a % of subtotal. */
+    discountKind: 'amount' | 'percent';
+    /** Raw discount input (rupees when 'amount', percent when 'percent'). */
+    discountInput: string;
   };
   period: 'today' | 'week' | 'month';
   khataSearch: string;
@@ -95,7 +106,17 @@ function initialCb(): AppState['cb'] {
     gstMode: null,
     custState: '',
     payMethodId: null,
+    discountKind: 'amount',
+    discountInput: '',
   };
+}
+
+/** Effective discount in rupees from the build-step input, clamped to subtotal. */
+export function cbDiscountRupees(cb: AppState['cb'], subtotal: number): number {
+  const raw = parseFloat(cb.discountInput);
+  if (!(raw > 0)) return 0;
+  const value = cb.discountKind === 'percent' ? (subtotal * raw) / 100 : raw;
+  return Math.min(subtotal, Math.max(0, value));
 }
 
 interface AppActions {
@@ -112,6 +133,9 @@ interface AppActions {
   closeOverlay: () => void;
   openCustomer: (id: string) => void;
   openStaff: (id: string) => void;
+  openInvoice: (billId: string) => void;
+  openSearch: () => void;
+  openCustomerActivity: (id: string, name: string) => void;
   togglePresent: (staffId: string, base: boolean) => void;
   setPeriod: (period: AppState['period']) => void;
   setKhataSearch: (khataSearch: string) => void;
@@ -143,6 +167,8 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   overlay: null,
   selCustomer: null,
   selStaff: null,
+  selBill: null,
+  selCustomerActivity: null,
   presence: {},
   cb: initialCb(),
   period: 'today',
@@ -164,6 +190,9 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   closeOverlay: () => set({ overlay: null }),
   openCustomer: (id) => set({ selCustomer: id, overlay: 'customer' }),
   openStaff: (id) => set({ selStaff: id, overlay: 'staffDetail' }),
+  openInvoice: (billId) => set({ selBill: billId, overlay: 'invoice' }),
+  openSearch: () => set({ overlay: 'search' }),
+  openCustomerActivity: (id, name) => set({ selCustomerActivity: { id, name }, overlay: 'customerActivity' }),
   togglePresent: (staffId, base) =>
     set((s) => {
       const current = s.presence[staffId] ?? base;

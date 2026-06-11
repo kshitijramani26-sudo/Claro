@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/atoms/Card';
@@ -11,6 +11,7 @@ import { Select } from '@/components/atoms/Select';
 import { PrimaryButton, HeaderIconButton } from '@/components/atoms/Button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { pickQrImage } from '@/lib/pickQrImage';
 import { signOut } from '@/lib/supabase';
 import { GST_STATES, stateName } from '@/lib/states';
 import { Colors, Radius } from '@/theme/tokens';
@@ -57,6 +58,7 @@ export default function Profile() {
   // New payment method form
   const [newUpi, setNewUpi] = useState('');
   const [newLabel, setNewLabel] = useState('');
+  const [newQr, setNewQr] = useState<string | null>(null);
 
   useEffect(() => {
     if (business) {
@@ -93,14 +95,28 @@ export default function Profile() {
       return;
     }
     try {
-      await api.addPaymentMethod({ upiId: newUpi.trim(), label: newLabel.trim() });
+      await api.addPaymentMethod({ upiId: newUpi.trim(), label: newLabel.trim(), qrImageUrl: newQr });
       setNewUpi('');
       setNewLabel('');
+      setNewQr(null);
       reloadMethods();
       flashToast('UPI method added');
     } catch (e) {
       flashToast((e as Error).message);
     }
+  };
+
+  const pickNewQr = async () => {
+    const uri = await pickQrImage();
+    if (uri) setNewQr(uri);
+  };
+
+  const setMethodQr = async (id: string, clear = false) => {
+    const uri = clear ? null : await pickQrImage();
+    if (!clear && !uri) return;
+    await api.setPaymentMethodQr(id, uri).catch((e: Error) => flashToast(e.message));
+    reloadMethods();
+    flashToast(clear ? 'QR image removed' : 'QR image saved');
   };
 
   const logout = async () => {
@@ -191,12 +207,26 @@ export default function Profile() {
                 backgroundColor: m.isDefault ? brand.tint : Colors.canvas,
               }}
             >
+              <Tap onPress={() => setMethodQr(m.id, !!m.qrImageUrl)} hitSlop={4}>
+                {m.qrImageUrl ? (
+                  <Image source={{ uri: m.qrImageUrl }} style={{ width: 38, height: 38, borderRadius: Radius.chip }} resizeMode="cover" />
+                ) : (
+                  <View
+                    style={{
+                      width: 38, height: 38, borderRadius: Radius.chip, borderWidth: 1.5,
+                      borderColor: Colors.border, alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <Sym name="file_upload" size={18} color={Colors.textMuted} />
+                  </View>
+                )}
+              </Tap>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: Font.bold, fontSize: 14, color: Colors.textPrimary }} numberOfLines={1}>
                   {m.label || m.upiId}
                 </Text>
                 <Text style={[{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary, marginTop: 1 }, tnum]} numberOfLines={1}>
-                  {m.upiId}
+                  {m.qrImageUrl ? 'Tap QR to remove' : m.upiId}
                 </Text>
               </View>
               <Tap
@@ -222,9 +252,26 @@ export default function Profile() {
           ))}
           <Input value={newUpi} onChangeText={setNewUpi} placeholder="UPI ID (e.g. shop@oksbi)" focusColor={brand.brand} height={50} autoCapitalize="none" />
           <Input value={newLabel} onChangeText={setNewLabel} placeholder="Label (e.g. SBI Personal)" focusColor={brand.brand} height={50} />
+          <Tap
+            onPress={pickNewQr}
+            style={{
+              height: 50, borderRadius: Radius.btn, borderWidth: 1.5, borderColor: Colors.border,
+              backgroundColor: Colors.inputBg, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14,
+            }}
+          >
+            {newQr ? (
+              <Image source={{ uri: newQr }} style={{ width: 30, height: 30, borderRadius: Radius.chip }} resizeMode="cover" />
+            ) : (
+              <Sym name="image" size={20} color={Colors.textMuted} />
+            )}
+            <Text style={{ flex: 1, fontFamily: Font.semibold, fontSize: 13.5, color: newQr ? Colors.textPrimary : Colors.textMuted }}>
+              {newQr ? 'QR image attached — tap to change' : 'Attach a QR image (optional)'}
+            </Text>
+            {newQr ? <Sym name="check_circle" size={20} color={Colors.success} /> : null}
+          </Tap>
           <PrimaryButton label="Add UPI method" icon="add" onPress={addMethod} />
           <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted }}>
-            The QR for each UPI ID is generated automatically and printed on invoices.
+            No image? Claro generates an exact-amount QR from your UPI ID for every bill.
           </Text>
         </Card>
 

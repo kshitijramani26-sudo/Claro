@@ -1,6 +1,8 @@
 import { Text, View } from 'react-native';
 import { IconTile } from '@/components/atoms/IconTile';
 import { Money } from '@/components/atoms/Money';
+import { Sym } from '@/components/atoms/Icon';
+import { Tap } from '@/components/atoms/Tap';
 import type { Activity } from '@/data/types';
 import type { SymbolName } from '@/lib/icons';
 import { Colors, KindTiles } from '@/theme/tokens';
@@ -10,14 +12,19 @@ const KIND_ICON: Record<Activity['kind'], SymbolName> = {
   sale: 'point_of_sale',
   credit: 'account_balance_wallet',
   settle: 'check_circle',
+  advance: 'savings',
+  salary: 'payments',
 };
 
-/** Feed row — kind tile, title/sub, right-aligned amount (credit = red, + prefix). */
-export function ActivityRow({ item, last }: { item: Activity; last?: boolean }) {
+/** Feed row — kind tile, title/sub, right-aligned amount (credit = red, + prefix). Tap → invoice. */
+export function ActivityRow({ item, last, onPress }: { item: Activity; last?: boolean; onPress?: (item: Activity) => void }) {
   const tile = KindTiles[item.kind];
   const isCredit = item.kind === 'credit';
+  const tappable = !!onPress && !!item.billId;
   return (
-    <View
+    <Tap
+      disabled={!tappable}
+      onPress={tappable ? () => onPress!(item) : undefined}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -39,6 +46,7 @@ export function ActivityRow({ item, last }: { item: Activity; last?: boolean }) 
         prefix={isCredit ? '+' : ''}
         style={[Type.listMoney, { color: isCredit ? Colors.danger : Colors.textPrimary }]}
       />
-    </View>
+      {tappable ? <Sym name="chevron_right" size={18} color={Colors.textMuted} /> : null}
+    </Tap>
   );
 }

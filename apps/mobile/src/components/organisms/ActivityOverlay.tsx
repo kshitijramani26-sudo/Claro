@@ -12,6 +12,7 @@ import { useAppStore } from '@/state/store';
 export function ActivityOverlay() {
   const theme = usePageTheme('billing');
   const closeOverlay = useAppStore((s) => s.closeOverlay);
+  const openInvoice = useAppStore((s) => s.openInvoice);
   const { data } = useApi(() => api.getActivity(50));
   const rows = data ?? [];
   return (
@@ -28,7 +29,7 @@ export function ActivityOverlay() {
         ) : (
           <Card style={{ paddingVertical: 6, paddingHorizontal: 18 }}>
             {rows.map((a, i) => (
-              <ActivityRow key={a.id} item={a} last={i === rows.length - 1} />
+              <ActivityRow key={a.id} item={a} last={i === rows.length - 1} onPress={() => a.billId && openInvoice(a.billId)} />
             ))}
           </Card>
         )}

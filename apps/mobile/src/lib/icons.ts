@@ -60,6 +60,19 @@ export const SYMBOLS = {
   currency_rupee: 'currency-rupee',
   contacts: 'contacts',
   notifications: 'notifications',
+  open_in_full: 'open-in-full',
+  image: 'image',
+  picture_as_pdf: 'picture-as-pdf',
+  sell: 'sell',
+  percent: 'percent',
+  person_search: 'person-search',
+  calendar_month: 'calendar-month',
+  event: 'event',
+  account_balance: 'account-balance',
+  savings: 'savings',
+  file_upload: 'file-upload',
+  history: 'history',
+  payments_outlined: 'payments',
 } as const satisfies Record<string, MaterialIconName>;
 
 export type SymbolName = keyof typeof SYMBOLS;

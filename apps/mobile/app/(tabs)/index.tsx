@@ -27,6 +27,8 @@ export default function Billing() {
   const business = useAppStore((s) => s.business);
   const emptyMode = useAppStore((s) => s.emptyMode);
   const openOverlay = useAppStore((s) => s.openOverlay);
+  const openInvoice = useAppStore((s) => s.openInvoice);
+  const openSearch = useAppStore((s) => s.openSearch);
   const cbReset = useAppStore((s) => s.cbReset);
 
   const { data: summary, error: summaryError, reload } = useApi(() => api.getSummary());
@@ -63,6 +65,15 @@ export default function Billing() {
               {shopName || ' '}
             </Text>
           </View>
+          <Tap
+            onPress={openSearch}
+            style={{
+              width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.canvas,
+              borderWidth: 0.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+            }}
+          >
+            <Sym name="search" size={22} color={Colors.textPrimary} />
+          </Tap>
           <Tap onPress={() => router.push('/profile')}>
             <Avatar initials={initials} size={46} bg={brand.brand} color="#FFFFFF" fontSize={16} style={avatarShadow(brand.brand)} />
           </Tap>
@@ -133,7 +144,11 @@ export default function Billing() {
                     scrollEnabled={false}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item, index }) => (
-                      <ActivityRow item={item} last={index === feed.length - 1} />
+                      <ActivityRow
+                        item={item}
+                        last={index === feed.length - 1}
+                        onPress={(a) => a.billId && openInvoice(a.billId)}
+                      />
                     )}
                   />
                 </Card>

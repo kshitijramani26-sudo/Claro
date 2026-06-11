@@ -1,7 +1,9 @@
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { Card } from '@/components/atoms/Card';
 import { Sym } from '@/components/atoms/Icon';
+import { Tap } from '@/components/atoms/Tap';
 import { Money } from '@/components/atoms/Money';
+import { UpiQr } from '@/components/atoms/UpiQr';
 import type { BillItem } from '@/state/store';
 import { formatINR } from '@/lib/format';
 import type { PreviewTotals } from '@/lib/gstPreview';
@@ -20,13 +22,20 @@ interface Props {
   accent: string;
   /** Server (post-confirm) or client-preview totals — always engine math, never 9%+9% guesswork. */
   totals: PreviewTotals;
-  /** Real UPI QR (base64 PNG) once the bill is saved; placeholder glyph before. */
-  qrBase64?: string | null;
+  /** Show the scan-to-pay QR block — only for UPI bills. */
+  showQr?: boolean;
+  /** upi:// deep link encoded by the on-screen QR (live, exact amount). */
+  upiUri?: string | null;
+  /** Uploaded QR image for the chosen method (shown as-is in place of the generated QR). */
+  qrImageUrl?: string | null;
   upiLabel?: string;
+  /** Tapping the QR enlarges it (Scan & Pay). */
+  onQrPress?: () => void;
 }
 
-export function InvoiceCard({ shopName, gstin, gstMode, customer, items, invoiceNo, date, accent, totals, qrBase64, upiLabel }: Props) {
+export function InvoiceCard({ shopName, gstin, gstMode, customer, items, invoiceNo, date, accent, totals, showQr, upiUri, qrImageUrl, upiLabel, onQrPress }: Props) {
   const showTax = gstMode === 'gst' && totals.taxTotal > 0;
+  const hasDiscount = totals.discount > 0;
   return (
     <Card>
       {/* Header */}
@@ -78,6 +87,7 @@ export function InvoiceCard({ shopName, gstin, gstMode, customer, items, invoice
       {/* Totals */}
       <View style={{ paddingHorizontal: 22, paddingTop: 14, paddingBottom: 22 }}>
         <TotalRow label="Subtotal" value={formatINR(totals.subtotal)} />
+        {hasDiscount ? <TotalRow label="Discount" value={`− ${formatINR(totals.discount)}`} valueColor={Colors.success} /> : null}
         {showTax && totals.taxKind === 'intra' ? (
           <>
             <TotalRow label="CGST" value={formatINR(totals.cgst)} />
@@ -106,55 +116,64 @@ export function InvoiceCard({ shopName, gstin, gstMode, customer, items, invoice
         </View>
       </View>
 
-      {/* UPI QR — real once saved, placeholder glyph before */}
-      <View
-        style={{
-          backgroundColor: Colors.inputBg,
-          paddingVertical: 20,
-          paddingHorizontal: 22,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 18,
-          borderBottomLeftRadius: Radius.card,
-          borderBottomRightRadius: Radius.card,
-        }}
-      >
-        <View
+      {/* UPI QR — only for UPI bills; tap to enlarge into Scan & Pay */}
+      {showQr ? (
+        <Tap
+          onPress={onQrPress}
           style={{
-            width: 92,
-            height: 92,
-            borderRadius: Radius.card,
-            backgroundColor: Colors.canvas,
-            borderWidth: 1,
-            borderColor: Colors.border,
+            backgroundColor: Colors.inputBg,
+            paddingVertical: 20,
+            paddingHorizontal: 22,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden',
+            gap: 18,
+            borderBottomLeftRadius: Radius.card,
+            borderBottomRightRadius: Radius.card,
           }}
         >
-          {qrBase64 ? (
-            <Image source={{ uri: `data:image/png;base64,${qrBase64}` }} style={{ width: 86, height: 86 }} resizeMode="contain" />
-          ) : (
-            <Sym name="qr_code_2" size={64} color={Colors.textPrimary} />
-          )}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textPrimary }}>Scan to pay via UPI</Text>
-          <Money value={totals.grand} style={[{ fontFamily: Font.extrabold, fontSize: 20, letterSpacing: -0.4, color: accent, marginTop: 4 }, tnum]} />
-          <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted, marginTop: 3 }}>
-            {upiLabel || shopName}
-          </Text>
-        </View>
-      </View>
+          <View
+            style={{
+              width: 92,
+              height: 92,
+              borderRadius: Radius.card,
+              backgroundColor: Colors.canvas,
+              borderWidth: 1,
+              borderColor: Colors.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}
+          >
+            {upiUri || qrImageUrl ? (
+              <UpiQr value={upiUri ?? ''} size={84} imageUrl={qrImageUrl} />
+            ) : (
+              <Sym name="qr_code_2" size={64} color={Colors.textPrimary} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textPrimary }}>Scan to pay via UPI</Text>
+            <Money value={totals.grand} style={[{ fontFamily: Font.extrabold, fontSize: 20, letterSpacing: -0.4, color: accent, marginTop: 4 }, tnum]} />
+            <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted, marginTop: 3 }}>
+              {upiLabel || shopName}
+            </Text>
+          </View>
+          {onQrPress ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+              <Text style={{ fontFamily: Font.bold, fontSize: 11.5, color: accent }}>Enlarge</Text>
+              <Sym name="open_in_full" size={14} color={accent} />
+            </View>
+          ) : null}
+        </Tap>
+      ) : null}
     </Card>
   );
 }
 
-function TotalRow({ label, value }: { label: string; value: string }) {
+function TotalRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
       <Text style={{ fontFamily: Font.medium, fontSize: 13.5, color: Colors.textSecondary }}>{label}</Text>
-      <Text style={[{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textPrimary }, tnum]}>{value}</Text>
+      <Text style={[{ fontFamily: Font.semibold, fontSize: 13.5, color: valueColor ?? Colors.textPrimary }, tnum]}>{value}</Text>
     </View>
   );
 }

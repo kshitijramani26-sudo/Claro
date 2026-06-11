@@ -9,6 +9,7 @@ from ..errors import NotFoundError
 from ..schemas import BillCreate, BillRead, UpiRead
 from ..services import bills as billsvc
 from ..services.pdfgen import render_invoice_pdf
+from ..services.storage import upload_invoice_pdf
 from ..services.upi import qr_png_base64, upi_deeplink
 
 router = APIRouter(prefix="/bills", tags=["bills"])
@@ -56,6 +57,25 @@ async def bill_pdf(bill_id: UUID, biz: CurrentBusiness = Depends(get_current_bus
         content=pdf, media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{bill.invoice_no}.pdf"'},
     )
+
+
+@router.post("/{bill_id}/share-link")
+async def bill_share_link(bill_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
+    """Render + host the invoice PDF for a WhatsApp link. Returns {url:null} when
+    storage isn't configured — the app then attaches the file via the share sheet."""
+    bill = await billsvc.get_bill(biz, bill_id)
+    vpa: str | None = None
+    try:
+        vpa, _ = await _bill_vpa(biz, bill)
+    except NotFoundError:
+        pass
+    pdf = render_invoice_pdf(bill, biz.row, vpa)
+    path = f"{biz.id}/{bill.invoice_no}.pdf"
+    url = await upload_invoice_pdf(path, pdf)
+    if url is not None:
+        async with biz_txn(biz.id) as conn:
+            await conn.execute("UPDATE bills SET pdf_url = $1 WHERE id = $2 AND business_id = $3", url, bill_id, biz.id)
+    return {"url": url}
 
 
 @router.get("/{bill_id}/upi", response_model=UpiRead)

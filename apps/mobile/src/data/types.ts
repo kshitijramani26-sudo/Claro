@@ -17,7 +17,7 @@ export interface Summary {
   monthLabel: string;
 }
 
-export type ActivityKind = 'sale' | 'credit' | 'settle';
+export type ActivityKind = 'sale' | 'credit' | 'settle' | 'advance' | 'salary';
 
 export interface Activity {
   id: string;
@@ -26,6 +26,8 @@ export interface Activity {
   amount: number;
   kind: ActivityKind;
   time: string;
+  /** Underlying bill id when this row has an invoice (tap → invoice summary). */
+  billId?: string | null;
 }
 
 export interface KhataCustomer {

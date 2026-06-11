@@ -48,22 +48,32 @@ async def activity(limit: int = 20, biz: CurrentBusiness = Depends(get_current_b
             """
             (SELECT 'bill-' || b.id AS id, b.invoice_no AS title,
                     b.payment_mode || CASE WHEN s.name IS NOT NULL THEN ' · ' || s.name ELSE '' END AS sub,
-                    b.grand_total_paise AS amount, 'sale' AS kind, b.created_at AS at
+                    b.grand_total_paise AS amount, 'sale' AS kind, b.created_at AS at,
+                    b.id::text AS bill_id
              FROM bills b LEFT JOIN staff s ON s.id = b.staff_id
              WHERE b.business_id = $1 AND b.payment_mode IN ('CASH','UPI'))
             UNION ALL
             (SELECT 'khata-' || k.id, c.name,
                     CASE WHEN k.type = 'credit' THEN 'Credit added · Khata' ELSE 'Settled up' END,
                     k.amount_paise,
-                    CASE WHEN k.type = 'credit' THEN 'credit' ELSE 'settle' END, k.created_at
+                    CASE WHEN k.type = 'credit' THEN 'credit' ELSE 'settle' END, k.created_at,
+                    k.bill_id::text
              FROM khata_entries k JOIN customers c ON c.id = k.customer_id
              WHERE k.business_id = $1)
+            UNION ALL
+            (SELECT 'staff-' || l.id, s.name,
+                    CASE WHEN l.type = 'advance' THEN 'Advance given · Staff' ELSE 'Salary paid · Staff' END,
+                    l.amount_paise,
+                    CASE WHEN l.type = 'advance' THEN 'advance' ELSE 'salary' END, l.created_at,
+                    NULL::text
+             FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
+             WHERE l.business_id = $1 AND l.type IN ('advance','salary_payment'))
             ORDER BY at DESC LIMIT $2
             """,
             biz.id, limit,
         )
     return [
         ActivityRead(id=r["id"], title=r["title"], sub=r["sub"], amount_paise=r["amount"],
-                     kind=r["kind"], at=r["at"])
+                     kind=r["kind"], at=r["at"], bill_id=r["bill_id"])
         for r in rows
     ]

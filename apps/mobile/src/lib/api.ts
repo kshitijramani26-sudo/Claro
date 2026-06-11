@@ -80,6 +80,7 @@ export interface ConfirmBillInput {
   staffId?: string | null;
   gstMode?: 'gst' | 'non_gst' | null;
   paymentMethodId?: string | null;
+  discountPaise?: number;
 }
 
 const realApi = {
@@ -126,11 +127,14 @@ const realApi = {
     const rows = await request<{ id: string; upi_id: string; qr_image_url: string | null; label: string; is_default: boolean }[]>('/payment-methods');
     return rows.map((m) => ({ id: m.id, upiId: m.upi_id, qrImageUrl: m.qr_image_url, label: m.label, isDefault: m.is_default }));
   },
-  async addPaymentMethod(input: { upiId: string; label: string; isDefault?: boolean }): Promise<PaymentMethod> {
+  async addPaymentMethod(input: { upiId: string; label: string; isDefault?: boolean; qrImageUrl?: string | null }): Promise<PaymentMethod> {
     const m = await request<{ id: string; upi_id: string; qr_image_url: string | null; label: string; is_default: boolean }>('/payment-methods', {
-      method: 'POST', json: { upi_id: input.upiId, label: input.label, is_default: input.isDefault ?? false },
+      method: 'POST', json: { upi_id: input.upiId, label: input.label, is_default: input.isDefault ?? false, qr_image_url: input.qrImageUrl ?? null },
     });
     return { id: m.id, upiId: m.upi_id, qrImageUrl: m.qr_image_url, label: m.label, isDefault: m.is_default };
+  },
+  async setPaymentMethodQr(id: string, qrImageUrl: string | null): Promise<void> {
+    await request(`/payment-methods/${id}`, { method: 'PATCH', json: { qr_image_url: qrImageUrl } });
   },
   async setDefaultPaymentMethod(id: string): Promise<void> {
     await request(`/payment-methods/${id}/set-default`, { method: 'PATCH' });
@@ -152,8 +156,8 @@ const realApi = {
     };
   },
   async getActivity(limit = 20): Promise<Activity[]> {
-    const rows = await request<{ id: string; title: string; sub: string; amount_paise: number; kind: Activity['kind']; at: string }[]>(`/activity?limit=${limit}`);
-    return rows.map((a) => ({ id: a.id, title: a.title, sub: a.sub, amount: r(a.amount_paise), kind: a.kind, time: timeAgo(a.at) }));
+    const rows = await request<{ id: string; title: string; sub: string; amount_paise: number; kind: Activity['kind']; at: string; bill_id: string | null }[]>(`/activity?limit=${limit}`);
+    return rows.map((a) => ({ id: a.id, title: a.title, sub: a.sub, amount: r(a.amount_paise), kind: a.kind, time: timeAgo(a.at), billId: a.bill_id }));
   },
 
   // ── khata ──
@@ -277,6 +281,7 @@ const realApi = {
         staff_id: input.staffId ?? null,
         gst_mode: input.gstMode ?? null,
         payment_method_id: input.paymentMethodId ?? null,
+        discount_paise: Math.max(0, Math.round(input.discountPaise ?? 0)),
       },
     });
     return mapBill(w);
@@ -284,6 +289,14 @@ const realApi = {
   async getBillUpi(billId: string): Promise<UpiInfo> {
     const u = await request<{ upi_id: string; label: string; deeplink: string; qr_png_base64: string }>(`/bills/${billId}/upi`);
     return { upiId: u.upi_id, label: u.label, deeplink: u.deeplink, qrPngBase64: u.qr_png_base64 };
+  },
+  /** Render the PDF, upload it to storage, and return a public link (null if storage unconfigured). */
+  async getBillShareLink(billId: string): Promise<string | null> {
+    const r = await request<{ url: string | null }>(`/bills/${billId}/share-link`, { method: 'POST' });
+    return r.url;
+  },
+  async getBill(billId: string): Promise<BillResult> {
+    return mapBill(await request<WireBill>(`/bills/${billId.replace(/^bill-/, '')}`));
   },
   async getAnalytics(period: PeriodKey): Promise<AnalyticsPeriod> {
     const a = await request<{
@@ -303,6 +316,10 @@ const realApi = {
   async searchCustomers(q: string): Promise<CustomerHit[]> {
     const rows = await request<{ id: string; name: string; phone: string; outstanding_paise: number }[]>(`/customers/search?q=${encodeURIComponent(q)}`);
     return rows.map((c) => ({ id: c.id, name: c.name, phone: c.phone, outstanding: r(c.outstanding_paise) }));
+  },
+  async getCustomerActivity(customerId: string): Promise<Activity[]> {
+    const rows = await request<{ id: string; title: string; sub: string; amount_paise: number; kind: Activity['kind']; at: string; bill_id: string | null }[]>(`/customers/${customerId}/activity`);
+    return rows.map((a) => ({ id: a.id, title: a.title, sub: a.sub, amount: r(a.amount_paise), kind: a.kind, time: timeAgo(a.at), billId: a.bill_id }));
   },
 };
 
@@ -334,11 +351,13 @@ let mStaff = [...mock.staff];
 let mStaffDetail = { ...mock.staffDetail };
 let mAnalytics = { ...mock.analytics };
 let mBestSelling = [...mock.bestSelling];
-let mPaymentMethods = [
+interface MockMethod { id: string; upi_id: string; qr_image_url: string | null; label: string; is_default: boolean }
+let mPaymentMethods: MockMethod[] = [
   { id: 'pm-1', upi_id: 'sharma@oksbi', qr_image_url: null, label: 'SBI Shop Account', is_default: true },
   { id: 'pm-2', upi_id: 'sharma.personal@okaxis', qr_image_url: null, label: 'Axis Personal', is_default: false },
 ];
 let invoiceCounter = 1043;
+let mBills: Record<string, BillResult> = {};
 
 const mockApi = {
   async getBusiness(): Promise<Business> {
@@ -392,13 +411,17 @@ const mockApi = {
   async getPaymentMethods(): Promise<PaymentMethod[]> {
     return mPaymentMethods.map((m) => ({ id: m.id, upiId: m.upi_id, qrImageUrl: m.qr_image_url, label: m.label, isDefault: m.is_default }));
   },
-  async addPaymentMethod(input: { upiId: string; label: string; isDefault?: boolean }): Promise<PaymentMethod> {
-    const m = { id: `pm-${mPaymentMethods.length + 1}`, upi_id: input.upiId, qr_image_url: null, label: input.label, is_default: input.isDefault ?? false };
+  async addPaymentMethod(input: { upiId: string; label: string; isDefault?: boolean; qrImageUrl?: string | null }): Promise<PaymentMethod> {
+    const m = { id: `pm-${mPaymentMethods.length + 1}`, upi_id: input.upiId, qr_image_url: input.qrImageUrl ?? null, label: input.label, is_default: input.isDefault ?? false };
     if (m.is_default) {
       mPaymentMethods.forEach((x) => x.is_default = false);
     }
     mPaymentMethods.push(m);
     return { id: m.id, upiId: m.upi_id, qrImageUrl: m.qr_image_url, label: m.label, isDefault: m.is_default };
+  },
+  async setPaymentMethodQr(id: string, qrImageUrl: string | null): Promise<void> {
+    const m = mPaymentMethods.find((x) => x.id === id);
+    if (m) m.qr_image_url = qrImageUrl;
   },
   async setDefaultPaymentMethod(id: string): Promise<void> {
     mPaymentMethods.forEach((m) => {
@@ -626,6 +649,8 @@ const mockApi = {
     });
 
     const subtotal = items.reduce((sum, it) => sum + it.lineTotal, 0);
+    const discount = Math.min(subtotal, Math.max(0, (input.discountPaise ?? 0) / 100));
+    const taxable = subtotal - discount;
     const taxKind = input.customerStateCode ? (input.customerStateCode === mBusiness.state_code ? 'intra' : 'inter') : 'intra';
 
     let taxTotal = 0;
@@ -634,7 +659,7 @@ const mockApi = {
     let igst = 0;
 
     if (mBusiness.gst_registered && input.gstMode === 'gst') {
-      taxTotal = Math.round(subtotal * 0.18);
+      taxTotal = Math.round(taxable * 0.18);
       if (taxKind === 'intra') {
         cgst = Math.floor(taxTotal / 2);
         sgst = taxTotal - cgst;
@@ -643,7 +668,7 @@ const mockApi = {
       }
     }
 
-    const grandTotal = subtotal + taxTotal;
+    const grandTotal = taxable + taxTotal;
 
     const billResult: BillResult = {
       id: `bill-${Date.now()}`,
@@ -651,8 +676,8 @@ const mockApi = {
       gstMode: input.gstMode === 'gst' ? 'gst' : 'non_gst',
       taxKind,
       subtotal,
-      discount: 0,
-      taxable: subtotal,
+      discount,
+      taxable,
       cgst,
       sgst,
       igst,
@@ -713,12 +738,32 @@ const mockApi = {
       amount: grandTotal,
       kind: 'sale',
       time: 'Just now',
+      billId: billResult.id,
     });
 
     mSummary.todaysSales += grandTotal;
     mSummary.todaysBills += 1;
 
+    mBills[billResult.id] = billResult;
     return billResult;
+  },
+  async getBill(billId: string): Promise<BillResult> {
+    const stored = mBills[billId];
+    if (stored) return stored;
+    // Synthesize a minimal invoice from a seeded activity row so the demo flows.
+    const act = mActivities.find((a) => a.id === billId);
+    if (!act) throw new Error('Bill not found');
+    return {
+      id: act.id, invoiceNo: act.title.replace('Bill ', ''), gstMode: 'non_gst', taxKind: 'none',
+      subtotal: act.amount, discount: 0, taxable: act.amount, cgst: 0, sgst: 0, igst: 0,
+      taxTotal: 0, grandTotal: act.amount,
+      paymentMode: act.sub.includes('Credit') ? 'CREDIT' : act.sub.includes('UPI') ? 'UPI' : 'CASH',
+      customerName: act.sub.split('·').pop()?.trim() ?? 'Walk-in', date: 'Today',
+      items: [{ name: act.title, qty: 1, price: act.amount, lineTotal: act.amount }],
+    };
+  },
+  async getBillShareLink(_billId: string): Promise<string | null> {
+    return null; // no hosted storage in mock mode
   },
   async getBillUpi(billId: string): Promise<UpiInfo> {
     const defaultMethod = mPaymentMethods.find((m) => m.is_default) ?? mPaymentMethods[0];
@@ -767,6 +812,18 @@ const mockApi = {
         phone: c.phone,
         outstanding: c.amount,
       }));
+  },
+  async getCustomerActivity(customerId: string): Promise<Activity[]> {
+    const tl = mKhataTimeline[customerId] || [];
+    return tl.map((t) => ({
+      id: t.id,
+      title: t.label,
+      sub: t.debit > 0 ? 'Credit · Khata' : 'Payment received',
+      amount: t.debit > 0 ? t.debit : t.credit,
+      kind: t.debit > 0 ? ('credit' as const) : ('settle' as const),
+      time: t.date,
+      billId: null,
+    }));
   },
 };
 
