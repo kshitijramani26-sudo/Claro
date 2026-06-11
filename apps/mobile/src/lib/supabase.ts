@@ -1,0 +1,59 @@
+/**
+ * Supabase phone-OTP auth. Two modes:
+ *  • DEV (EXPO_PUBLIC_DEV_AUTH=true): no Supabase call; any 6-digit OTP passes and
+ *    the API receives "dev:<phone>" (accepted only when the API runs AUTH_DEV_BYPASS).
+ *  • REAL: supabase-js signInWithOtp/verifyOtp; the session JWT goes to the API.
+ * Session is kept in memory (no storage APIs per project rules) — re-login on cold start.
+ */
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { setAuthToken } from './http';
+
+const DEV_AUTH = (process.env.EXPO_PUBLIC_DEV_AUTH ?? 'true') === 'true';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+let client: SupabaseClient | null = null;
+
+function supabase(): SupabaseClient {
+  if (!client) {
+    client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: true, detectSessionInUrl: false },
+    });
+  }
+  return client;
+}
+
+/** "98765 43210" → "+919876543210" */
+export function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (raw.trim().startsWith('+') && digits.length > 10) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  return digits ? `+${digits}` : '';
+}
+
+export async function sendOtp(phone: string): Promise<void> {
+  if (DEV_AUTH) return; // no SMS in dev mode — any code is accepted at verify
+  const { error } = await supabase().auth.signInWithOtp({ phone: toE164(phone) });
+  if (error) throw new Error(error.message);
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<void> {
+  const e164 = toE164(phone);
+  if (DEV_AUTH) {
+    if (code.replace(/\D/g, '').length !== 6) throw new Error('Enter the 6-digit code');
+    setAuthToken(`dev:${e164}`);
+    return;
+  }
+  const { data, error } = await supabase().auth.verifyOtp({ phone: e164, token: code, type: 'sms' });
+  if (error || !data.session) throw new Error(error?.message ?? 'Verification failed');
+  setAuthToken(data.session.access_token);
+  supabase().auth.onAuthStateChange((_event, session) => {
+    setAuthToken(session?.access_token ?? null);
+  });
+}
+
+export async function signOut(): Promise<void> {
+  if (!DEV_AUTH) await supabase().auth.signOut();
+  setAuthToken(null);
+}
