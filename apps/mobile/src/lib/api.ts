@@ -248,14 +248,21 @@ const realApi = {
   async addRepayment(staffId: string, amountRupees: number, note: string): Promise<void> {
     await request(`/staff/${staffId}/repayment`, { method: 'POST', json: { amount_paise: Math.round(amountRupees * 100), note } });
   },
-  async getStaffDetail(staffId: string | null): Promise<StaffDetail | undefined> {
+  async payStaffSalary(staffId: string, amountRupees?: number, note = 'Salary paid'): Promise<void> {
+    const json = amountRupees != null ? { amount_paise: Math.round(amountRupees * 100), note } : { note };
+    await request(`/staff/${staffId}/pay-salary`, { method: 'POST', json });
+  },
+  async getStaffDetail(staffId: string | null, days = 14): Promise<StaffDetail | undefined> {
     if (!staffId) return undefined;
     const d = await request<{
       sales_paise: number; bills: number; avg_bill_paise: number; attendance14: boolean[];
+      remaining_salary_paise: number; salary_paid_this_month: boolean;
       advances: { id: number; label: string; amount_paise: number; repaid: boolean; at: string }[];
-    }>(`/staff/${staffId}`);
+    }>(`/staff/${staffId}?days=${days}`);
     return {
       pnl: { sales: r(d.sales_paise), bills: d.bills, avg: r(d.avg_bill_paise) },
+      remainingSalary: r(d.remaining_salary_paise),
+      paidThisMonth: d.salary_paid_this_month,
       attendance: d.attendance14,
       advances: d.advances.map((a) => ({
         id: String(a.id), label: a.label,
@@ -359,6 +366,7 @@ let mPaymentMethods: MockMethod[] = [
 ];
 let invoiceCounter = 1043;
 let mBills: Record<string, BillResult> = {};
+const mSalaryPaid: Record<string, boolean> = {};
 
 const mockApi = {
   async getBusiness(): Promise<Business> {
@@ -595,7 +603,7 @@ const mockApi = {
     if (s) {
       s.advance += amountRupees;
       if (!mStaffDetail[staffId]) {
-        mStaffDetail[staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, attendance: Array(14).fill(true), advances: [] };
+        mStaffDetail[staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, remainingSalary: 0, paidThisMonth: false, attendance: Array(14).fill(true), advances: [] };
       }
       mStaffDetail[staffId].advances.unshift({
         id: `ad-${Date.now()}`,
@@ -604,6 +612,10 @@ const mockApi = {
         amount: amountRupees,
         repaid: false,
       });
+      mActivities.unshift({
+        id: `act-${Date.now()}`, title: s.name, sub: 'Advance given · Staff',
+        amount: amountRupees, kind: 'advance', time: 'Just now',
+      });
     }
   },
   async addRepayment(staffId: string, amountRupees: number, note: string): Promise<void> {
@@ -611,7 +623,7 @@ const mockApi = {
     if (s) {
       s.advance = Math.max(0, s.advance - amountRupees);
       if (!mStaffDetail[staffId]) {
-        mStaffDetail[staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, attendance: Array(14).fill(true), advances: [] };
+        mStaffDetail[staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, remainingSalary: 0, paidThisMonth: false, attendance: Array(14).fill(true), advances: [] };
       }
       let remaining = amountRupees;
       mStaffDetail[staffId].advances.forEach((a) => {
@@ -627,9 +639,24 @@ const mockApi = {
       });
     }
   },
-  async getStaffDetail(staffId: string | null): Promise<StaffDetail | undefined> {
+  async getStaffDetail(staffId: string | null, days = 14): Promise<StaffDetail | undefined> {
     if (!staffId) return undefined;
-    return mStaffDetail[staffId] || { pnl: { sales: 0, bills: 0, avg: 0 }, attendance: Array(14).fill(true), advances: [] };
+    const base = mStaffDetail[staffId] || { pnl: { sales: 0, bills: 0, avg: 0 }, remainingSalary: 0, paidThisMonth: false, attendance: Array(14).fill(true), advances: [] };
+    const member = mStaff.find((m) => m.id === staffId);
+    const remaining = member ? Math.max(0, member.salary - member.advance) : base.remainingSalary;
+    // Synthesize an attendance window of the requested length (mostly present).
+    const attendance = Array.from({ length: days }, (_, i) => base.attendance[i % Math.max(1, base.attendance.length)] ?? true);
+    return { ...base, remainingSalary: remaining, paidThisMonth: mSalaryPaid[staffId] ?? base.paidThisMonth, attendance };
+  },
+  async payStaffSalary(staffId: string, _amountRupees?: number, _note = 'Salary paid'): Promise<void> {
+    const s = mStaff.find((x) => x.id === staffId);
+    if (!s) return;
+    mSalaryPaid[staffId] = true;
+    s.advance = 0; // advance adjusted against salary; next month starts fresh
+    mActivities.unshift({
+      id: `act-${Date.now()}`, title: s.name, sub: 'Salary paid · Staff',
+      amount: s.salary, kind: 'salary', time: 'Just now',
+    });
   },
   async confirmBill(input: ConfirmBillInput): Promise<BillResult> {
     const invoiceNo = `${mBusiness.invoice_prefix}${invoiceCounter++}`;
@@ -695,7 +722,7 @@ const mockApi = {
       const staffMember = mStaff.find((x) => x.id === input.staffId);
       if (staffMember) {
         if (!mStaffDetail[input.staffId]) {
-          mStaffDetail[input.staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, attendance: Array(14).fill(true), advances: [] };
+          mStaffDetail[input.staffId] = { pnl: { sales: 0, bills: 0, avg: 0 }, remainingSalary: 0, paidThisMonth: false, attendance: Array(14).fill(true), advances: [] };
         }
         mStaffDetail[input.staffId].pnl.sales += grandTotal;
         mStaffDetail[input.staffId].pnl.bills += 1;

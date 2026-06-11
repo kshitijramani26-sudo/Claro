@@ -95,6 +95,8 @@ export const staff: StaffMember[] = [
 export const staffDetail: Record<string, StaffDetail> = {
   s1: {
     pnl: { sales: 184500, bills: 312, avg: 591 },
+    remainingSalary: 16000,
+    paidThisMonth: false,
     attendance: [true, true, true, false, true, true, true, true, true, true, false, true, true, true],
     advances: [
       { id: 'ad1', label: 'Festival advance', date: '01 Jun', amount: 2000, repaid: false },

@@ -5,6 +5,7 @@ import { Card } from '@/components/atoms/Card';
 import { Avatar } from '@/components/atoms/Avatar';
 import { Badge } from '@/components/atoms/Badge';
 import { Money } from '@/components/atoms/Money';
+import { SegmentedControl } from '@/components/atoms/SegmentedControl';
 import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
@@ -14,7 +15,12 @@ import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
 import { useAppStore } from '@/state/store';
 
-/** Staff detail — profile card, 3-col performance, 14-day attendance grid, advances list. */
+const ATT_RANGES = [
+  { key: '14', label: 'Last 2 weeks' },
+  { key: '31', label: 'Last month' },
+] as const;
+
+/** Staff detail — profile, salary, performance, attendance grid (2wk/month), advances. */
 export function StaffDetailOverlay() {
   const theme = usePageTheme('staff');
   const selStaff = useAppStore((s) => s.selStaff);
@@ -23,9 +29,10 @@ export function StaffDetailOverlay() {
   const refresh = useAppStore((s) => s.refresh);
   const [advanceMode, setAdvanceMode] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('');
+  const [attDays, setAttDays] = useState<14 | 31>(14);
 
   const { data: members } = useApi(() => api.getStaff());
-  const { data: detail, reload } = useApi(() => api.getStaffDetail(selStaff), [selStaff]);
+  const { data: detail, reload } = useApi(() => api.getStaffDetail(selStaff, attDays), [selStaff, attDays]);
   const member = (members ?? []).find((m) => m.id === selStaff);
 
   if (!member) {
@@ -56,16 +63,15 @@ export function StaffDetailOverlay() {
     }
   };
 
+  const remaining = detail?.remainingSalary ?? Math.max(0, member.salary - member.advance);
+  const paidThisMonth = detail?.paidThisMonth ?? false;
+
   const paySalary = async () => {
     try {
-      if (member.advance > 0) {
-        await api.addRepayment(member.id, member.advance, 'Adjusted against salary');
-        refresh();
-        reload();
-        flashToast(`Salary paid · advance of ${formatINR(member.advance)} cleared`);
-      } else {
-        flashToast('Salary paid · ' + formatINR(member.salary));
-      }
+      await api.payStaffSalary(member.id);
+      refresh();
+      reload();
+      flashToast(`Salary paid · ${formatINR(remaining)} to ${firstName}`);
       closeOverlay();
     } catch (e) {
       flashToast((e as Error).message);
@@ -80,7 +86,7 @@ export function StaffDetailOverlay() {
       bg={theme.bg}
       footer={
         advanceMode ? (
-          <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={{ gap: 10 }}>
             <TextInput
               value={advanceAmount}
               onChangeText={setAdvanceAmount}
@@ -89,7 +95,6 @@ export function StaffDetailOverlay() {
               keyboardType="number-pad"
               autoFocus
               style={{
-                flex: 1,
                 height: 52,
                 borderRadius: Radius.tile,
                 borderWidth: 1.5,
@@ -101,20 +106,35 @@ export function StaffDetailOverlay() {
                 color: Colors.textPrimary,
               }}
             />
-            <OutlineButton label="Cancel" height={52} fontSize={14} onPress={() => setAdvanceMode(false)} />
-            <PrimaryButton label="Save" height={52} onPress={recordAdvance} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <OutlineButton
+                label="Cancel"
+                height={52}
+                fontSize={14}
+                onPress={() => { setAdvanceMode(false); setAdvanceAmount(''); }}
+                style={{ flex: 1 }}
+              />
+              <PrimaryButton label="Save advance" height={52} onPress={recordAdvance} style={{ flex: 1.4 }} />
+            </View>
           </View>
         ) : (
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <OutlineButton
               label="Record Advance"
-              icon="payments"
+              icon="savings"
               height={52}
               fontSize={14}
               onPress={() => setAdvanceMode(true)}
               style={{ flex: 1 }}
             />
-            <PrimaryButton label="Pay Salary" icon="check_circle" height={52} onPress={paySalary} style={{ flex: 1.2 }} />
+            <PrimaryButton
+              label={paidThisMonth ? 'Salary paid' : 'Pay Salary'}
+              icon="check_circle"
+              height={52}
+              disabled={paidThisMonth}
+              onPress={paySalary}
+              style={{ flex: 1.2 }}
+            />
           </View>
         )
       }
@@ -136,6 +156,25 @@ export function StaffDetailOverlay() {
           </View>
         </Card>
 
+        {/* Salary — remaining to pay this month */}
+        <Card pad={18} style={{ gap: 10 }}>
+          <Text style={Type.sectionTitle}>Salary</Text>
+          <SalaryRow label="Monthly salary" value={formatINR(member.salary)} />
+          <SalaryRow label="Advance outstanding" value={member.advance > 0 ? `− ${formatINR(member.advance)}` : formatINR(0)} color={member.advance > 0 ? Colors.danger : undefined} />
+          <View style={{ height: 1, backgroundColor: Colors.divider }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontFamily: Font.bold, fontSize: 14, color: Colors.textPrimary }}>Remaining to pay</Text>
+            <Money value={remaining} style={[{ fontFamily: Font.extrabold, fontSize: 20, color: paidThisMonth ? Colors.textMuted : theme.accent }, tnum]} />
+          </View>
+          {paidThisMonth ? (
+            <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.success }}>✓ Salary paid for this month</Text>
+          ) : (
+            <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted }}>
+              Any advance is adjusted against salary; next month starts fresh.
+            </Text>
+          )}
+        </Card>
+
         {/* Performance */}
         <Card pad={18}>
           <Text style={[Type.sectionTitle, { marginBottom: 14 }]}>Performance</Text>
@@ -148,9 +187,22 @@ export function StaffDetailOverlay() {
           </View>
         </Card>
 
-        {/* Attendance — last 14 days */}
+        {/* Attendance — 2 weeks / month */}
         <Card pad={18}>
-          <Text style={[Type.sectionTitle, { marginBottom: 14 }]}>Attendance · last 14 days</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <Text style={Type.sectionTitle}>Attendance</Text>
+            <Text style={[{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary }, tnum]}>
+              {(detail?.attendance ?? []).filter(Boolean).length}/{(detail?.attendance ?? []).length} present
+            </Text>
+          </View>
+          <View style={{ marginBottom: 14 }}>
+            <SegmentedControl
+              options={[...ATT_RANGES]}
+              value={String(attDays)}
+              onChange={(v) => setAttDays(Number(v) as 14 | 31)}
+              accent={theme.accent}
+            />
+          </View>
           <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {(detail?.attendance ?? []).map((present, i) => (
               <View
@@ -199,6 +251,15 @@ export function StaffDetailOverlay() {
         ) : null}
       </ScrollView>
     </OverlayShell>
+  );
+}
+
+function SalaryRow({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={{ fontFamily: Font.medium, fontSize: 13.5, color: Colors.textSecondary }}>{label}</Text>
+      <Text style={[{ fontFamily: Font.bold, fontSize: 14, color: color ?? Colors.textPrimary }, tnum]}>{value}</Text>
+    </View>
   );
 }
 

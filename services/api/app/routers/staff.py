@@ -10,13 +10,14 @@ from ..errors import DomainError, NotFoundError
 from ..schemas import (
     AdvanceCreate,
     AttendanceCreate,
+    SalaryPayCreate,
     StaffAdvanceRead,
     StaffCreate,
     StaffDetailRead,
     StaffPatch,
     StaffRead,
 )
-from ..util import ist_today, normalize_phone
+from ..util import ist_month_start_utc, ist_today, normalize_phone
 
 router = APIRouter(prefix="/staff", tags=["staff"])
 
@@ -133,9 +134,41 @@ async def add_repayment(staff_id: UUID, payload: AdvanceCreate, biz: CurrentBusi
     return await _ledger_mutation(biz, staff_id, "repayment", payload)
 
 
+@router.post("/{staff_id}/pay-salary", response_model=StaffRead)
+async def pay_salary(staff_id: UUID, payload: SalaryPayCreate, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+    """Record a month-end salary payment of the remaining amount (salary − advance),
+    adjust the outstanding advance against it, and start the next month fresh."""
+    async with biz_txn(biz.id) as conn:
+        row = await conn.fetchrow(
+            "SELECT salary_paise, advance_outstanding_paise FROM staff WHERE id = $1 AND business_id = $2 FOR UPDATE",
+            staff_id, biz.id,
+        )
+        if row is None:
+            raise NotFoundError("Staff member not found")
+        remaining = max(0, row["salary_paise"] - row["advance_outstanding_paise"])
+        amount = payload.amount_paise if payload.amount_paise is not None else remaining
+        if amount <= 0:
+            raise DomainError("Nothing to pay — advance already covers the salary")
+        await conn.execute(
+            """INSERT INTO staff_ledger (business_id, staff_id, type, amount_paise, note)
+               VALUES ($1, $2, 'salary_payment', $3, $4)""",
+            biz.id, staff_id, amount, payload.note or "Salary paid",
+        )
+        # Advance is adjusted against this salary cycle → clear it for a fresh month.
+        updated = await conn.fetchrow(
+            f"UPDATE staff SET advance_outstanding_paise = 0 WHERE id = $1 AND business_id = $2 RETURNING {_COLS}",
+            staff_id, biz.id,
+        )
+        present = await conn.fetchval(
+            "SELECT status = 'present' FROM attendance WHERE staff_id = $1 AND date = $2", staff_id, ist_today()
+        )
+    return StaffRead(**dict(updated), present_today=present if present is not None else True)
+
+
 @router.get("/{staff_id}", response_model=StaffDetailRead)
-async def staff_detail(staff_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> StaffDetailRead:
+async def staff_detail(staff_id: UUID, days: int = 14, biz: CurrentBusiness = Depends(get_current_business)) -> StaffDetailRead:
     today = ist_today()
+    days = max(7, min(days, 31))
     async with biz_txn(biz.id) as conn:
         srow = await conn.fetchrow(
             f"""SELECT {_COLS},
@@ -152,8 +185,8 @@ async def staff_detail(staff_id: UUID, biz: CurrentBusiness = Depends(get_curren
             staff_id, biz.id,
         )
         att = await conn.fetch(
-            "SELECT date, status FROM attendance WHERE staff_id = $1 AND date > $2 - 14 AND date <= $2",
-            staff_id, today,
+            "SELECT date, status FROM attendance WHERE staff_id = $1 AND date > $2 - $3::int AND date <= $2",
+            staff_id, today, days,
         )
         ledger = await conn.fetch(
             """SELECT id, type, amount_paise, note, created_at
@@ -162,9 +195,15 @@ async def staff_detail(staff_id: UUID, biz: CurrentBusiness = Depends(get_curren
                ORDER BY created_at, id""",
             staff_id, biz.id,
         )
+        paid_this_month = await conn.fetchval(
+            """SELECT EXISTS(SELECT 1 FROM staff_ledger
+                             WHERE staff_id = $1 AND business_id = $2
+                               AND type = 'salary_payment' AND created_at >= $3)""",
+            staff_id, biz.id, ist_month_start_utc(),
+        )
 
     att_map = {r["date"]: r["status"] == "present" for r in att}
-    attendance14 = [att_map.get(today.fromordinal(today.toordinal() - offset), True) for offset in range(13, -1, -1)]
+    attendance14 = [att_map.get(today.fromordinal(today.toordinal() - offset), True) for offset in range(days - 1, -1, -1)]
 
     # FIFO: repayments retire the oldest advances first → per-advance repaid status.
     advances = [dict(r) for r in ledger if r["type"] == "advance"]
@@ -182,9 +221,12 @@ async def staff_detail(staff_id: UUID, biz: CurrentBusiness = Depends(get_curren
 
     sales = perf["sales"]
     bills = perf["bills"]
+    remaining = max(0, srow["salary_paise"] - srow["advance_outstanding_paise"])
     return StaffDetailRead(
         staff=StaffRead(**dict(srow)),
         sales_paise=sales, bills=bills,
         avg_bill_paise=(sales // bills) if bills else 0,
+        remaining_salary_paise=remaining,
+        salary_paid_this_month=bool(paid_this_month),
         attendance14=attendance14, advances=advance_rows,
     )

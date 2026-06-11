@@ -83,6 +83,9 @@ export interface StaffAdvance {
 
 export interface StaffDetail {
   pnl: { sales: number; bills: number; avg: number };
+  /** salary − advance outstanding (≥ 0). */
+  remainingSalary: number;
+  paidThisMonth: boolean;
   attendance: boolean[];
   advances: StaffAdvance[];
 }

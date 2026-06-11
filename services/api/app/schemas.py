@@ -292,6 +292,11 @@ class AdvanceCreate(BaseModel):
     note: str = ""
 
 
+class SalaryPayCreate(BaseModel):
+    amount_paise: int | None = Field(default=None, gt=0)  # None ⇒ remaining (salary − advance)
+    note: str = "Salary paid"
+
+
 class StaffAdvanceRead(BaseModel):
     id: int
     label: str
@@ -305,7 +310,9 @@ class StaffDetailRead(BaseModel):
     sales_paise: int
     bills: int
     avg_bill_paise: int
-    attendance14: list[bool]  # oldest → newest
+    remaining_salary_paise: int       # salary − advance outstanding (≥ 0)
+    salary_paid_this_month: bool      # already paid this IST month?
+    attendance14: list[bool]          # oldest → newest (length = requested window)
     advances: list[StaffAdvanceRead]
 
 
