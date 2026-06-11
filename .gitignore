@@ -1,0 +1,24 @@
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Python / FastAPI
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Build
+*.apk
+*.aab
+*.ipa
