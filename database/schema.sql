@@ -202,7 +202,7 @@ CREATE TABLE staff_ledger (
     business_id  uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     staff_id     uuid NOT NULL REFERENCES staff(id) ON DELETE CASCADE,
     bill_id      uuid REFERENCES bills(id),
-    type         text NOT NULL CHECK (type IN ('advance','repayment','sale_attrib')),
+    type         text NOT NULL CHECK (type IN ('advance','repayment','sale_attrib','salary_payment')),
     amount_paise bigint NOT NULL CHECK (amount_paise > 0),
     note         text NOT NULL DEFAULT '',
     created_at   timestamptz NOT NULL DEFAULT now()

@@ -185,7 +185,7 @@ async def staff_detail(staff_id: UUID, days: int = 14, biz: CurrentBusiness = De
             staff_id, biz.id,
         )
         att = await conn.fetch(
-            "SELECT date, status FROM attendance WHERE staff_id = $1 AND date > $2 - $3::int AND date <= $2",
+            "SELECT date, status FROM attendance WHERE staff_id = $1 AND date > $2::date - $3::int AND date <= $2::date",
             staff_id, today, days,
         )
         ledger = await conn.fetch(

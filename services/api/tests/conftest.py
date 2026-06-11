@@ -17,7 +17,7 @@ from app.auth import CurrentBusiness, CurrentUser  # noqa: E402
 
 ADMIN_DSN = os.environ.get("CLARO_TEST_ADMIN_DSN", "postgresql://postgres@localhost:5544/postgres")
 TEST_DSN = os.environ["DATABASE_URL"]
-MIGRATION = pathlib.Path(__file__).resolve().parents[3] / "database" / "migrations" / "001_init.sql"
+MIGRATIONS_DIR = pathlib.Path(__file__).resolve().parents[3] / "database" / "migrations"
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -28,7 +28,8 @@ async def database():
     await admin.close()
 
     conn = await asyncpg.connect(TEST_DSN)
-    await conn.execute(MIGRATION.read_text(encoding="utf-8"))
+    for migration in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        await conn.execute(migration.read_text(encoding="utf-8"))
     await conn.close()
 
     await appdb.init_pool()
