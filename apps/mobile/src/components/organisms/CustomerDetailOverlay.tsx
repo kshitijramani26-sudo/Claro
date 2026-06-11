@@ -19,8 +19,8 @@ export function CustomerDetailOverlay() {
   const theme = usePageTheme('khata');
   const selCustomer = useAppStore((s) => s.selCustomer);
   const closeOverlay = useAppStore((s) => s.closeOverlay);
+  const openSettle = useAppStore((s) => s.openSettle);
   const flashToast = useAppStore((s) => s.flashToast);
-  const refresh = useAppStore((s) => s.refresh);
 
   const { data: customers } = useApi(() => api.getKhata());
   const { data: timelineData } = useApi(() => api.getKhataTimeline(selCustomer), [selCustomer]);
@@ -42,17 +42,6 @@ export function CustomerDetailOverlay() {
       </OverlayShell>
     );
   }
-
-  const settle = async () => {
-    try {
-      await api.settleUp(customer.id);
-      refresh();
-      flashToast('Settled ' + formatINR(customer.amount));
-      closeOverlay();
-    } catch (e) {
-      flashToast((e as Error).message);
-    }
-  };
 
   const remind = async () => {
     try {
@@ -79,7 +68,7 @@ export function CustomerDetailOverlay() {
             onPress={remind}
             style={{ flex: 1 }}
           />
-          <PrimaryButton label="Settle Up" height={52} onPress={settle} style={{ flex: 1.4 }} />
+          <PrimaryButton label="Settle Up" height={52} onPress={() => openSettle(customer.id, customer.name, customer.amount)} style={{ flex: 1.4 }} />
         </View>
       }
     >

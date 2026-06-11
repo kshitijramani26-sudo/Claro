@@ -5,7 +5,7 @@ import { StaffDetailOverlay } from './StaffDetailOverlay';
 import { InvoiceSummaryOverlay } from './InvoiceSummaryOverlay';
 import { SearchOverlay } from './SearchOverlay';
 import { CustomerActivityOverlay } from './CustomerActivityOverlay';
-import { AddCreditSheet, AddInventorySheet, AddStaffSheet } from './AddSheets';
+import { AddCreditSheet, AddInventorySheet, AddStaffSheet, SettleSheet } from './AddSheets';
 import { useAppStore } from '@/state/store';
 
 /**
@@ -35,6 +35,8 @@ export function OverlayHost() {
       return <AddInventorySheet />;
     case 'addStaff':
       return <AddStaffSheet />;
+    case 'settle':
+      return <SettleSheet />;
     default:
       return null;
   }

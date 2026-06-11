@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { BottomSheet } from './BottomSheet';
 import { PrimaryButton } from '@/components/atoms/Button';
+import { Tap } from '@/components/atoms/Tap';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
 import { api } from '@/lib/api';
+import { formatINR } from '@/lib/format';
 import { Colors, Radius } from '@/theme/tokens';
-import { Font } from '@/theme/typography';
+import { Font, tnum } from '@/theme/typography';
 import { usePageTheme } from '@/theme/pageThemes';
 import { useAppStore } from '@/state/store';
 
@@ -185,6 +187,69 @@ export function AddStaffSheet() {
         <Field placeholder="Phone number" value={phone} onChangeText={setPhone} accent={theme.accent} keyboardType="phone-pad" />
         <Field placeholder="Monthly salary (₹)" value={salary} onChangeText={setSalary} accent={theme.accent} keyboardType="number-pad" />
         <PrimaryButton label={saving ? 'Saving…' : 'Add staff member'} disabled={saving} onPress={save} style={{ marginTop: 8 }} />
+      </View>
+    </BottomSheet>
+  );
+}
+
+export function SettleSheet() {
+  const theme = usePageTheme('khata');
+  const target = useAppStore((s) => s.selSettle);
+  const closeOverlay = useAppStore((s) => s.closeOverlay);
+  const flashToast = useAppStore((s) => s.flashToast);
+  const refresh = useAppStore((s) => s.refresh);
+  const outstanding = target?.outstanding ?? 0;
+  const [amount, setAmount] = useState(String(outstanding));
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!target) return;
+    const amt = parseFloat(amount);
+    if (!(amt > 0)) {
+      flashToast('Enter an amount to settle');
+      return;
+    }
+    if (amt > outstanding + 0.001) {
+      flashToast('Amount exceeds the outstanding balance');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.settleUp(target.id, amt);
+      refresh();
+      flashToast('Settled ' + formatINR(amt));
+      closeOverlay();
+    } catch (e) {
+      flashToast((e as Error).message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <BottomSheet title={`Settle ${target?.name ?? ''}`.trim()} onClose={closeOverlay}>
+      <View style={{ gap: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Text style={{ fontFamily: Font.medium, fontSize: 13, color: Colors.textSecondary }}>Outstanding</Text>
+          <Text style={[{ fontFamily: Font.extrabold, fontSize: 15, color: Colors.danger }, tnum]}>{formatINR(outstanding)}</Text>
+        </View>
+        <Field placeholder="Amount to settle (₹)" value={amount} onChangeText={setAmount} accent={theme.accent} keyboardType="number-pad" />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {[0.25, 0.5, 1].map((frac) => (
+            <Tap
+              key={frac}
+              onPress={() => setAmount(String(Math.round(outstanding * frac)))}
+              style={{
+                flex: 1, height: 38, borderRadius: Radius.tile, borderWidth: 1.5, borderColor: Colors.border,
+                backgroundColor: Colors.canvas, alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: Colors.textSecondary }}>
+                {frac === 1 ? 'Full' : `${frac * 100}%`}
+              </Text>
+            </Tap>
+          ))}
+        </View>
+        <PrimaryButton label={saving ? 'Settling…' : 'Record payment'} disabled={saving} onPress={save} style={{ marginTop: 8 }} />
       </View>
     </BottomSheet>
   );

@@ -11,7 +11,6 @@ import { DemoToggle } from '@/components/organisms/DemoToggle';
 import { PinnedCTA } from '@/components/organisms/PinnedCTA';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { formatINR } from '@/lib/format';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
@@ -26,24 +25,14 @@ export default function Khata() {
   const setKhataSearch = useAppStore((s) => s.setKhataSearch);
   const openCustomer = useAppStore((s) => s.openCustomer);
   const openOverlay = useAppStore((s) => s.openOverlay);
+  const openSettle = useAppStore((s) => s.openSettle);
   const flashToast = useAppStore((s) => s.flashToast);
-  const refresh = useAppStore((s) => s.refresh);
   const [searchFocused, setSearchFocused] = useState(false);
 
   const { data, loading, error, reload } = useApi(() => api.getKhata());
   const customers = emptyMode ? [] : (data ?? []);
   const filtered = customers.filter((c) => c.name.toLowerCase().includes(khataSearch.toLowerCase()));
   const totalOutstanding = customers.reduce((s, c) => s + c.amount, 0);
-
-  const settle = async (id: string, amount: number) => {
-    try {
-      await api.settleUp(id);
-      refresh();
-      flashToast('Settled ' + formatINR(amount));
-    } catch (e) {
-      flashToast((e as Error).message);
-    }
-  };
 
   const remind = async (id: string, name: string) => {
     try {
@@ -137,7 +126,7 @@ export default function Khata() {
                     accent={theme.accent}
                     tile={theme.tile}
                     onPress={() => openCustomer(c.id)}
-                    onSettle={() => settle(c.id, c.amount)}
+                    onSettle={() => openSettle(c.id, c.name, c.amount)}
                     onRemind={() => remind(c.id, c.name)}
                   />
                 ))}

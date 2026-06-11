@@ -183,8 +183,9 @@ const realApi = {
       json: { name: input.name, phone: input.phone, amount_paise: Math.round(input.amountRupees * 100), note: input.note },
     });
   },
-  async settleUp(customerId: string): Promise<void> {
-    await request(`/khata/${customerId}/settle`, { method: 'POST', json: {} });
+  async settleUp(customerId: string, amountRupees?: number): Promise<void> {
+    const json = amountRupees != null ? { amount_paise: Math.round(amountRupees * 100) } : {};
+    await request(`/khata/${customerId}/settle`, { method: 'POST', json });
   },
   async getReminder(customerId: string): Promise<{ text: string; waUrl: string }> {
     const data = await request<{ text: string; wa_url: string }>(`/khata/${customerId}/reminder`);
@@ -486,11 +487,12 @@ const mockApi = {
 
     mSummary.pendingKhata += input.amountRupees;
   },
-  async settleUp(customerId: string): Promise<void> {
+  async settleUp(customerId: string, amountRupees?: number): Promise<void> {
     const customer = mKhata.find((c) => c.id === customerId);
     if (!customer) return;
-    const settledAmount = customer.amount;
-    customer.amount = 0;
+    const settledAmount = amountRupees != null ? Math.min(customer.amount, Math.max(0, amountRupees)) : customer.amount;
+    if (settledAmount <= 0) return;
+    customer.amount -= settledAmount;
     customer.updated = 'Just now';
 
     if (!mKhataTimeline[customer.id]) {
