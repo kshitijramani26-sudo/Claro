@@ -1,21 +1,26 @@
+import { useState } from 'react';
 import { ScrollView, Text, View, FlatList } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
+import { WebView } from 'react-native-webview';
 import { Card } from '@/components/atoms/Card';
 import { Sym } from '@/components/atoms/Icon';
 import { Money } from '@/components/atoms/Money';
 import { Badge } from '@/components/atoms/Badge';
 import { Tap } from '@/components/atoms/Tap';
 import { SegmentedControl } from '@/components/atoms/SegmentedControl';
+import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { KpiTile } from '@/components/molecules/KpiTile';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { Sparkline } from '@/components/organisms/Sparkline';
 import { PinnedCTA } from '@/components/organisms/PinnedCTA';
+import { BottomSheet } from '@/components/organisms/BottomSheet';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { BASE_URL, getAuthToken } from '@/lib/http';
 import { formatINR } from '@/lib/format';
+import { analyticsHtml, analyticsCanvasHtml, type AnalyticsExport } from '@/lib/analyticsExport';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, MetricTiles, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
@@ -27,31 +32,59 @@ const PERIODS = [
   { key: 'month', label: 'Month' },
 ] as const;
 
+const PERIOD_LABEL: Record<string, string> = { today: 'Today', week: 'This week', month: 'This month' };
+
 /** Tab 5 — Analytics. */
 export default function Analytics() {
   const theme = usePageTheme('analytics');
   const insets = useSafeAreaInsets();
   const period = useAppStore((s) => s.period);
   const setPeriod = useAppStore((s) => s.setPeriod);
+  const business = useAppStore((s) => s.business);
   const flashToast = useAppStore((s) => s.flashToast);
+  const [exportMenu, setExportMenu] = useState(false);
+  const [pngHtml, setPngHtml] = useState<string | null>(null);
 
   const { data, error, reload } = useApi(() => api.getAnalytics(period), [period]);
   const { data: bestData } = useApi(() => api.getBestSelling(period), [period]);
   const best = bestData ?? [];
 
-  const exportCsv = async () => {
+  const payload = (): AnalyticsExport => ({
+    shopName: business?.name ?? 'My Shop',
+    periodLabel: PERIOD_LABEL[period] ?? period,
+    netPnl: data?.netPnl ?? 0,
+    sales: data?.sales ?? 0,
+    credit: data?.credit ?? 0,
+    inventory: data?.inventory ?? 0,
+    topStaff: data?.topStaff ?? '—',
+    best: best.map((b) => ({ name: b.name, units: b.units, revenue: b.revenue })),
+  });
+
+  const exportPdf = async () => {
+    setExportMenu(false);
     try {
-      const res = await fetch(`${BASE_URL}/analytics/export?period=${period}`, {
-        headers: { Authorization: `Bearer ${getAuthToken() ?? ''}` },
-      });
-      if (!res.ok) throw new Error('Export failed');
-      const csv = await res.text();
-      const file = new File(Paths.cache, `claro-${period}.csv`);
-      file.write(csv);
+      const { uri } = await Print.printToFileAsync({ html: analyticsHtml(payload()) });
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle: 'Export for CA' });
-      } else {
-        flashToast('Report saved');
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: `Analytics ${period}`, UTI: 'com.adobe.pdf' });
+      }
+    } catch (e) {
+      flashToast((e as Error).message);
+    }
+  };
+
+  const exportPng = () => {
+    setExportMenu(false);
+    setPngHtml(analyticsCanvasHtml(payload())); // mounts the off-screen capture WebView
+  };
+
+  const onPngCaptured = async (dataUrl: string) => {
+    setPngHtml(null);
+    try {
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+      const file = new File(Paths.cache, `claro-analytics-${period}.png`);
+      file.write(Uint8Array.from(atob(base64), (ch) => ch.charCodeAt(0)));
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, { mimeType: 'image/png', dialogTitle: `Analytics ${period}`, UTI: 'public.png' });
       }
     } catch (e) {
       flashToast((e as Error).message);
@@ -156,7 +189,31 @@ export default function Analytics() {
         )}
       </ScrollView>
 
-      <PinnedCTA label="Export for CA" icon="ios_share" pageBg={theme.bg} onPress={exportCsv} />
+      <PinnedCTA label="Export" icon="ios_share" pageBg={theme.bg} onPress={() => setExportMenu(true)} />
+
+      {exportMenu ? (
+        <BottomSheet title="Export analytics" onClose={() => setExportMenu(false)}>
+          <View style={{ gap: 12 }}>
+            <Text style={{ fontFamily: Font.medium, fontSize: 13.5, color: Colors.textSecondary }}>
+              Share your {PERIOD_LABEL[period] ?? period} summary as a file.
+            </Text>
+            <PrimaryButton label="Export as PDF" icon="picture_as_pdf" onPress={exportPdf} />
+            <OutlineButton label="Export as PNG" icon="image" height={54} fontSize={16} onPress={exportPng} />
+          </View>
+        </BottomSheet>
+      ) : null}
+
+      {/* Off-screen canvas → PNG (works in Expo Go; no native view-shot needed) */}
+      {pngHtml ? (
+        <View style={{ position: 'absolute', left: -2000, width: 360, height: 1 }} pointerEvents="none">
+          <WebView
+            source={{ html: pngHtml }}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            onMessage={(e) => onPngCaptured(e.nativeEvent.data)}
+          />
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
