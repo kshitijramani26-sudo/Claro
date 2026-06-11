@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Linking, ScrollView, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '@/components/atoms/Card';
 import { Sym } from '@/components/atoms/Icon';
 import { Money } from '@/components/atoms/Money';
@@ -55,7 +55,7 @@ export default function Khata() {
   };
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 16 }}>
@@ -148,6 +148,6 @@ export default function Khata() {
       </ScrollView>
 
       <PinnedCTA label="Add Credit Record" icon="add" pageBg={theme.bg} onPress={() => openOverlay('addCredit')} />
-    </View>
+    </SafeAreaView>
   );
 }

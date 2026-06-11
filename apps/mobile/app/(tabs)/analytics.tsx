@@ -1,5 +1,5 @@
-import { ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView, Text, View, FlatList } from 'react-native';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Card } from '@/components/atoms/Card';
@@ -59,7 +59,7 @@ export default function Analytics() {
   };
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ paddingTop: 12, paddingBottom: 16 }}>
@@ -112,39 +112,43 @@ export default function Analytics() {
               <>
                 <Text style={[Type.sectionTitle, { marginTop: 22, marginBottom: 12, marginHorizontal: 2 }]}>Best-selling items</Text>
                 <Card style={{ paddingVertical: 6, paddingHorizontal: 18 }}>
-                  {best.map((b, i) => (
-                    <View
-                      key={b.id}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 13,
-                        paddingVertical: 14,
-                        borderBottomWidth: i === best.length - 1 ? 0 : 1,
-                        borderBottomColor: Colors.divider,
-                      }}
-                    >
+                  <FlatList
+                    data={best}
+                    scrollEnabled={false}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item: b, index: i }) => (
                       <View
                         style={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: Radius.tile,
-                          backgroundColor: theme.tile,
+                          flexDirection: 'row',
                           alignItems: 'center',
-                          justifyContent: 'center',
+                          gap: 13,
+                          paddingVertical: 14,
+                          borderBottomWidth: i === best.length - 1 ? 0 : 1,
+                          borderBottomColor: Colors.divider,
                         }}
                       >
-                        <Text style={{ fontFamily: Font.extrabold, fontSize: 13, color: theme.accent }}>{i + 1}</Text>
+                        <View
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: Radius.tile,
+                            backgroundColor: theme.tile,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Text style={{ fontFamily: Font.extrabold, fontSize: 13, color: theme.accent }}>{i + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: Colors.textPrimary }}>{b.name}</Text>
+                          <Text style={[{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary, marginTop: 2 }, tnum]}>
+                            {b.units} units sold
+                          </Text>
+                        </View>
+                        <Money value={b.revenue} style={[{ fontFamily: Font.extrabold, fontSize: 15, color: Colors.textPrimary }, tnum]} />
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: Colors.textPrimary }}>{b.name}</Text>
-                        <Text style={[{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary, marginTop: 2 }, tnum]}>
-                          {b.units} units sold
-                        </Text>
-                      </View>
-                      <Money value={b.revenue} style={[{ fontFamily: Font.extrabold, fontSize: 15, color: Colors.textPrimary }, tnum]} />
-                    </View>
-                  ))}
+                    )}
+                  />
                 </Card>
               </>
             ) : null}
@@ -153,6 +157,6 @@ export default function Analytics() {
       </ScrollView>
 
       <PinnedCTA label="Export for CA" icon="ios_share" pageBg={theme.bg} onPress={exportCsv} />
-    </View>
+    </SafeAreaView>
   );
 }

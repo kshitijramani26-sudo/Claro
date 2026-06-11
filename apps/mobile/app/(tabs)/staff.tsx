@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Tap } from '@/components/atoms/Tap';
 import { StaffRow } from '@/components/molecules/StaffRow';
 import { EmptyState } from '@/components/molecules/EmptyState';
@@ -40,7 +40,7 @@ export default function Staff() {
   };
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 16 }}>
@@ -86,6 +86,6 @@ export default function Staff() {
       </ScrollView>
 
       <PinnedCTA label="Add Staff" icon="add" pageBg={theme.bg} onPress={() => openOverlay('addStaff')} />
-    </View>
+    </SafeAreaView>
   );
 }

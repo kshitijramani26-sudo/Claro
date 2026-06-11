@@ -30,6 +30,7 @@ export function PrimaryButton({ label, onPress, disabled, icon, iconNode, height
       disabled={disabled}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
+      android_ripple={!disabled ? { color: '#e0e0e0' } : undefined}
       style={[
         {
           height,

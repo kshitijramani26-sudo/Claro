@@ -4,6 +4,7 @@
  * stock/balances/summary stay live after Create Bill, Settle Up, etc.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { InteractionManager } from 'react-native';
 import { useAppStore } from '@/state/store';
 
 export interface ApiState<T> {
@@ -31,21 +32,24 @@ export function useApi<T>(fetcher: () => Promise<T>, deps: readonly unknown[] = 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    fetcher()
-      .then((result) => {
-        if (!cancelled && alive.current) {
-          setData(result);
-          setLoading(false);
-        }
-      })
-      .catch((err: Error) => {
-        if (!cancelled && alive.current) {
-          setError(err.message);
-          setLoading(false);
-        }
-      });
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetcher()
+        .then((result) => {
+          if (!cancelled && alive.current) {
+            setData(result);
+            setLoading(false);
+          }
+        })
+        .catch((err: Error) => {
+          if (!cancelled && alive.current) {
+            setError(err.message);
+            setLoading(false);
+          }
+        });
+    });
     return () => {
       cancelled = true;
+      task.cancel();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey, tick, ...deps]);

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 import Animated, { Easing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HeaderIconButton } from '@/components/atoms/Button';
@@ -28,37 +28,42 @@ export function OverlayShell({ title, onClose, closeIcon = 'close', bg, children
       entering={SlideInDown.duration(280).easing(SHEET_EASING)}
       style={{ position: 'absolute', inset: 0, zIndex: 50, backgroundColor: bg }}
     >
-      <View
-        style={{
-          paddingTop: insets.top + 8,
-          paddingHorizontal: 20,
-          paddingBottom: 14,
-          backgroundColor: Colors.canvas,
-          borderBottomWidth: 1,
-          borderBottomColor: Colors.navBorder,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 14,
-        }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
-        <HeaderIconButton icon={closeIcon} onPress={onClose} />
-        <Text style={{ fontFamily: Font.extrabold, fontSize: 18, color: Colors.textPrimary }}>{title}</Text>
-      </View>
-      <View style={{ flex: 1 }}>{children}</View>
-      {footer ? (
         <View
           style={{
-            backgroundColor: Colors.canvas,
-            borderTopWidth: 1,
-            borderTopColor: Colors.navBorder,
+            paddingTop: insets.top + 8,
             paddingHorizontal: 20,
-            paddingTop: 14,
-            paddingBottom: 18 + insets.bottom,
+            paddingBottom: 14,
+            backgroundColor: Colors.canvas,
+            borderBottomWidth: 1,
+            borderBottomColor: Colors.navBorder,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
           }}
         >
-          {footer}
+          <HeaderIconButton icon={closeIcon} onPress={onClose} />
+          <Text style={{ fontFamily: Font.extrabold, fontSize: 18, color: Colors.textPrimary }}>{title}</Text>
         </View>
-      ) : null}
+        <View style={{ flex: 1 }}>{children}</View>
+        {footer ? (
+          <View
+            style={{
+              backgroundColor: Colors.canvas,
+              borderTopWidth: 1,
+              borderTopColor: Colors.navBorder,
+              paddingHorizontal: 20,
+              paddingTop: 14,
+              paddingBottom: 18 + insets.bottom,
+            }}
+          >
+            {footer}
+          </View>
+        ) : null}
+      </KeyboardAvoidingView>
     </Animated.View>
   );
 }

@@ -178,7 +178,7 @@ export function CreateBillOverlay() {
           )
         }
       >
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
           <InvoiceCard
             shopName={business?.name ?? ''}
             gstin={business?.gstin ?? ''}
@@ -287,7 +287,7 @@ export function CreateBillOverlay() {
 
         {/* Catalog */}
         <Card style={{ maxHeight: 184 }}>
-          <ScrollView nestedScrollEnabled style={{ paddingHorizontal: 18 }}>
+          <ScrollView nestedScrollEnabled style={{ paddingHorizontal: 18 }} keyboardShouldPersistTaps="handled">
             {catalog.map((c, i) => (
               <View
                 key={c.id}

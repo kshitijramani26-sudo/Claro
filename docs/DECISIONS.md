@@ -12,6 +12,17 @@ Format:
 
 ---
 
+## [2026-06-11] — Antigravity (Gemini 3.5 Flash) — Mobile UX Polish, SafeArea & Mock Toggle
+- What changed:
+  - **Mock Switch**: Added `EXPO_PUBLIC_USE_MOCK_DATA=true` in `.env` and conditional `mockApi` branch in `src/lib/api.ts` with in-memory state mutations (add credit, settle, add inventory, add staff, confirm bills) for standalone frontend runs.
+  - **Keyboard Avoidance**: Wrapped onboarding frames (`ObFrame`), drawers (`BottomSheet`), overlays (`OverlayShell`), and settings (`profile.tsx`) in conditionally tuned `KeyboardAvoidingView` widgets (padding on iOS, height on Android) and set form ScrollViews to persist taps (`keyboardShouldPersistTaps="handled"`).
+  - **Performance Optimization**: Replaced array loops with native non-scrolling `FlatList` components on the Billing home (`index.tsx`) and Analytics (`analytics.tsx`) screens. Wrapped transitions/fetches in `InteractionManager.runAfterInteractions` (`useApi.ts`).
+  - **Layout Safe Areas**: Replaced root wrappers with `SafeAreaView` from `react-native-safe-area-context` on all main screens (index, analytics, khata, stock, staff, profile).
+  - **Touch Ripples**: Passed `android_ripple` configs to primary buttons and navigation tabs.
+- Why: UX Hardening to eliminate layout flickering, stutters, cutoff content, and ensure quick response.
+- Open items / next: physical device testing (Expo Go) and host backend deployment.
+
+
 ## [2026-06-11] — Claude Code (Fable 5) — Backend + full wiring complete
 - What shipped:
   - **database/**: `migrations/001_init.sql` (12 tables per spec §5 — users, businesses, payment_methods, customers, inventory_items, staff, bills, bill_items, khata_entries, payments, stock_ledger, staff_ledger, attendance; BIGINT paise, business_id denormalized onto child tables, indexes on business_id + (business_id, created_at), RLS policies FORCE'd via `app.business_id` GUC with `app.rls_bypass` for maintenance), `schema.sql` snapshot, `seed.sql` (claro-data.js mirror; ledger sums == cached balances by construction).

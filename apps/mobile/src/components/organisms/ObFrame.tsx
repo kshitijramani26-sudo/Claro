@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tap } from '@/components/atoms/Tap';
@@ -29,7 +29,11 @@ export function ObFrame({ step, title, subtitle, children, ctaLabel, ctaDisabled
   const brand = useBrand();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: OB_BG, paddingTop: insets.top }}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <View style={{ flex: 1, backgroundColor: OB_BG, paddingTop: insets.top }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 24, paddingTop: 8 }}>
         <Tap
           onPress={() => router.back()}
@@ -67,5 +71,6 @@ export function ObFrame({ step, title, subtitle, children, ctaLabel, ctaDisabled
       </ScrollView>
       <PinnedCTA label={ctaLabel} onPress={onCta} disabled={ctaDisabled} pageBg={OB_BG} bottomInset={insets.bottom} />
     </View>
+    </KeyboardAvoidingView>
   );
 }

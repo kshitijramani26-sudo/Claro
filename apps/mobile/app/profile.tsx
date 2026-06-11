@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, Switch, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Card } from '@/components/atoms/Card';
@@ -114,14 +114,18 @@ export default function Profile() {
   const initials = (business?.owner ?? '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
-      {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12 }}>
-        <HeaderIconButton icon="arrow_back" onPress={() => router.back()} />
-        <Text style={Type.screenTitle}>Profile</Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <View style={{ flex: 1, backgroundColor: BG, paddingTop: insets.top }}>
+        {/* Header */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingVertical: 12 }}>
+          <HeaderIconButton icon="arrow_back" onPress={() => router.back()} />
+          <Text style={Type.screenTitle}>Profile</Text>
+        </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: 40 + insets.bottom, gap: 14 }} showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, paddingBottom: 40 + insets.bottom, gap: 14 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Identity */}
         <Card pad={20} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
           <Avatar initials={initials} size={54} bg={brand.brand} color="#FFFFFF" fontSize={17} />
@@ -279,6 +283,7 @@ export default function Profile() {
         </Card>
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 

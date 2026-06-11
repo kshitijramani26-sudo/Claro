@@ -49,6 +49,7 @@ export function BottomNav() {
         return (
           <Pressable
             key={t.key}
+            android_ripple={{ color: '#e0e0e0', borderless: true }}
             onPress={() => {
               setTab(t.key);
               router.navigate(t.href as never);

@@ -1,6 +1,6 @@
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Tap } from '@/components/atoms/Tap';
 import { Avatar } from '@/components/atoms/Avatar';
 import { Card } from '@/components/atoms/Card';
@@ -40,7 +40,7 @@ export default function Billing() {
   const showEmpty = emptyMode || (summary !== null && summary.todaysBills === 0 && feed.length === 0);
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View
@@ -128,9 +128,14 @@ export default function Billing() {
               </View>
               {feed.length > 0 ? (
                 <Card style={{ paddingVertical: 6, paddingHorizontal: 18 }}>
-                  {feed.map((a, i) => (
-                    <ActivityRow key={a.id} item={a} last={i === feed.length - 1} />
-                  ))}
+                  <FlatList
+                    data={feed}
+                    scrollEnabled={false}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item, index }) => (
+                      <ActivityRow item={item} last={index === feed.length - 1} />
+                    )}
+                  />
                 </Card>
               ) : null}
             </>
@@ -147,6 +152,6 @@ export default function Billing() {
           openOverlay('createBill');
         }}
       />
-    </View>
+    </SafeAreaView>
   );
 }

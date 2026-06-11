@@ -12,10 +12,11 @@ interface Props {
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
   hitSlop?: number;
+  android_ripple?: any;
 }
 
 /** Pressable with the handoff tap feedback: scale(0.97), 150ms ease. */
-export function Tap({ onPress, onPressIn, onPressOut, disabled, style, children, hitSlop }: Props) {
+export function Tap({ onPress, onPressIn, onPressOut, disabled, style, children, hitSlop, android_ripple }: Props) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
@@ -31,6 +32,7 @@ export function Tap({ onPress, onPressIn, onPressOut, disabled, style, children,
         scale.value = withTiming(1, { duration: 150, easing: Easing.ease });
         onPressOut?.();
       }}
+      android_ripple={android_ripple}
       style={[animated, style]}
     >
       {children}

@@ -1,5 +1,5 @@
 import { ScrollView, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '@/components/atoms/Card';
 import { Tap } from '@/components/atoms/Tap';
 import { SummaryCard } from '@/components/molecules/SummaryCard';
@@ -27,7 +27,7 @@ export default function Stock() {
   const items = emptyMode ? [] : (data ?? []);
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, paddingBottom: 16 }}>
@@ -76,6 +76,6 @@ export default function Stock() {
       </ScrollView>
 
       <PinnedCTA label="Add Inventory" icon="add" pageBg={theme.bg} onPress={() => openOverlay('addInventory')} />
-    </View>
+    </SafeAreaView>
   );
 }
