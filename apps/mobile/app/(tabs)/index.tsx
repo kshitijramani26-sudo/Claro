@@ -39,7 +39,9 @@ export default function Billing() {
   const ownerFirst = ownerName.split(' ')[0] ?? '';
   const initials = ownerName.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '·';
   const shopName = business?.name ?? '';
-  const showEmpty = emptyMode || (summary !== null && summary.todaysBills === 0 && feed.length === 0);
+  // New-user / demo-empty: still show every structural card, just with zeroed values.
+  const sum = emptyMode ? null : summary;
+  const feedRows = emptyMode ? [] : feed;
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -90,16 +92,6 @@ export default function Billing() {
                 sub={`${summaryError} — tap to retry.`}
               />
             </Tap>
-          ) : showEmpty ? (
-            <View style={{ marginTop: 30 }}>
-              <EmptyState
-                icon="receipt_long"
-                tileBg={theme.tile}
-                tileFg={theme.accent}
-                title="No sales yet today"
-                sub="Create your first bill and your daily numbers will appear right here."
-              />
-            </View>
           ) : (
             <>
               {/* Today's Sales hero */}
@@ -108,16 +100,16 @@ export default function Billing() {
                 tileBg={MetricTiles.bills.bg}
                 tileFg={MetricTiles.bills.fg}
                 label="Today's Sales"
-                value={summary?.todaysSales ?? 0}
-                sub={`${summary?.todaysBills ?? 0} bills today`}
-                delta="▲ 12%"
+                value={sum?.todaysSales ?? 0}
+                sub={`${sum?.todaysBills ?? 0} bills today`}
+                delta={(sum?.todaysBills ?? 0) > 0 ? '▲ 12%' : undefined}
               />
 
               {/* Mini stats */}
               <View style={{ flexDirection: 'row', gap: 11, marginTop: 12 }}>
-                <StatTile icon="receipt_long" tileBg={MetricTiles.bills.bg} tileFg={MetricTiles.bills.fg} value={String(summary?.todaysBills ?? 0)} label="Bills" />
-                <StatTile icon="account_balance_wallet" tileBg={MetricTiles.pendingKhata.bg} tileFg={MetricTiles.pendingKhata.fg} value={formatINRShort(summary?.pendingKhata ?? 0)} label="Pending Khata" />
-                <StatTile icon="inventory_2" tileBg={MetricTiles.lowStock.bg} tileFg={MetricTiles.lowStock.fg} value={String(summary?.lowStock ?? 0)} label="Low Stock" />
+                <StatTile icon="receipt_long" tileBg={MetricTiles.bills.bg} tileFg={MetricTiles.bills.fg} value={String(sum?.todaysBills ?? 0)} label="Bills" />
+                <StatTile icon="account_balance_wallet" tileBg={MetricTiles.pendingKhata.bg} tileFg={MetricTiles.pendingKhata.fg} value={formatINRShort(sum?.pendingKhata ?? 0)} label="Pending Khata" />
+                <StatTile icon="inventory_2" tileBg={MetricTiles.lowStock.bg} tileFg={MetricTiles.lowStock.fg} value={String(sum?.lowStock ?? 0)} label="Low Stock" />
               </View>
 
               {/* Recent activity */}
@@ -132,27 +124,37 @@ export default function Billing() {
                 }}
               >
                 <Text style={Type.sectionTitle}>Recent activity</Text>
-                <Tap onPress={() => openOverlay('activity')} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                  <Text style={{ fontFamily: Font.bold, fontSize: 13, color: theme.accent }}>View all</Text>
-                  <Sym name="chevron_right" size={17} color={theme.accent} />
-                </Tap>
+                {feedRows.length > 0 ? (
+                  <Tap onPress={() => openOverlay('activity')} style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Text style={{ fontFamily: Font.bold, fontSize: 13, color: theme.accent }}>View all</Text>
+                    <Sym name="chevron_right" size={17} color={theme.accent} />
+                  </Tap>
+                ) : null}
               </View>
-              {feed.length > 0 ? (
+              {feedRows.length > 0 ? (
                 <Card style={{ paddingVertical: 6, paddingHorizontal: 18 }}>
                   <FlatList
-                    data={feed}
+                    data={feedRows}
                     scrollEnabled={false}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item, index }) => (
                       <ActivityRow
                         item={item}
-                        last={index === feed.length - 1}
+                        last={index === feedRows.length - 1}
                         onPress={(a) => a.billId && openInvoice(a.billId)}
                       />
                     )}
                   />
                 </Card>
-              ) : null}
+              ) : (
+                <EmptyState
+                  icon="receipt_long"
+                  tileBg={theme.tile}
+                  tileFg={theme.accent}
+                  title="No sales yet today"
+                  sub="Create your first bill and it will show up here."
+                />
+              )}
             </>
           )}
         </View>

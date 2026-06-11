@@ -39,38 +39,42 @@ export default function Stock() {
           <Tap onPress={reload}>
             <EmptyState icon="cloud_off" tileBg={theme.tile} tileFg={theme.accent} title="Can't reach the server" sub={`${error} — tap to retry.`} />
           </Tap>
-        ) : loading && items.length === 0 ? null : items.length === 0 ? (
-          <EmptyState
-            icon="inventory_2"
-            tileBg={Colors.warningTile}
-            tileFg={Colors.warning}
-            title="Your shelves are empty"
-            sub="Add your products to track stock value and get low-stock alerts."
-          />
-        ) : (
+        ) : loading && items.length === 0 ? null : (
           <>
-            {/* Stock value hero */}
+            {/* Stock value hero — always shown (₹0 for a new shop) */}
             <SummaryCard
               icon="inventory_2"
               tileBg={theme.tile}
               tileFg={theme.accent}
               label="Total stock value"
-              value={stats?.totalValue ?? 0}
-              sub={`Across ${stats?.skus ?? 0} active SKUs`}
+              value={items.length === 0 ? 0 : stats?.totalValue ?? 0}
+              sub={`Across ${items.length === 0 ? 0 : stats?.skus ?? 0} active SKUs`}
             />
 
             {/* Mini stats */}
             <View style={{ flexDirection: 'row', gap: 11, marginTop: 11 }}>
-              <StatTile icon="category" tileBg={theme.tile} tileFg={theme.accent} value={String(stats?.skus ?? 0)} label="Total SKUs" />
-              <StatTile icon="warning" tileBg={Colors.warningTile2} tileFg={Colors.warning} value={String(stats?.lowCount ?? 0)} label="Low on stock" />
+              <StatTile icon="category" tileBg={theme.tile} tileFg={theme.accent} value={String(items.length === 0 ? 0 : stats?.skus ?? 0)} label="Total SKUs" />
+              <StatTile icon="warning" tileBg={Colors.warningTile2} tileFg={Colors.warning} value={String(items.length === 0 ? 0 : stats?.lowCount ?? 0)} label="Low on stock" />
             </View>
 
-            {/* Inventory list */}
-            <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
-              {items.map((it, i) => (
-                <InventoryRow key={it.id} item={it} last={i === items.length - 1} />
-              ))}
-            </Card>
+            {/* Inventory list / empty */}
+            {items.length === 0 ? (
+              <View style={{ marginTop: 16 }}>
+                <EmptyState
+                  icon="inventory_2"
+                  tileBg={Colors.warningTile}
+                  tileFg={Colors.warning}
+                  title="Your shelves are empty"
+                  sub="Add your products to track stock value and get low-stock alerts."
+                />
+              </View>
+            ) : (
+              <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
+                {items.map((it, i) => (
+                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} />
+                ))}
+              </Card>
+            )}
           </>
         )}
       </ScrollView>

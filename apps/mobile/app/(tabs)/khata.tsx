@@ -56,17 +56,9 @@ export default function Khata() {
           <Tap onPress={reload}>
             <EmptyState icon="cloud_off" tileBg={theme.tile} tileFg={theme.accent} title="Can't reach the server" sub={`${error} — tap to retry.`} />
           </Tap>
-        ) : loading && customers.length === 0 ? null : customers.length === 0 ? (
-          <EmptyState
-            icon="verified_user"
-            tileBg={Colors.successTile}
-            tileFg={Colors.success}
-            title="No pending credit"
-            sub="Every customer is settled up. Add a credit record when someone buys on Khata."
-          />
-        ) : (
+        ) : loading && customers.length === 0 ? null : (
           <>
-            {/* Total outstanding */}
+            {/* Total outstanding — always shown (₹0 for a new shop) */}
             <Card pad={22} style={{ marginBottom: 18 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Sym name="account_balance_wallet" size={18} color={Colors.danger} />
@@ -81,56 +73,68 @@ export default function Khata() {
               </Text>
             </Card>
 
-            {/* Search */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                height: 48,
-                borderRadius: Radius.btn,
-                borderWidth: 1.5,
-                borderColor: searchFocused ? theme.accent : Colors.border,
-                backgroundColor: Colors.canvas,
-                paddingHorizontal: 14,
-                marginBottom: 14,
-              }}
-            >
-              <Sym name="search" size={20} color={Colors.textMuted} />
-              <TextInput
-                value={khataSearch}
-                onChangeText={setKhataSearch}
-                placeholder="Search customers…"
-                placeholderTextColor={Colors.textMuted}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                style={{ flex: 1, fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}
-              />
-            </View>
-
-            {/* Customer list / no-match */}
-            {filtered.length === 0 ? (
+            {customers.length === 0 ? (
               <EmptyState
-                icon="search_off"
-                tileBg={theme.tile}
-                tileFg={theme.accent}
-                title="No customers found"
-                sub="Try a different name — or add a new credit record below."
+                icon="verified_user"
+                tileBg={Colors.successTile}
+                tileFg={Colors.success}
+                title="No pending credit"
+                sub="Every customer is settled up. Add a credit record when someone buys on Khata."
               />
             ) : (
-              <View style={{ gap: 12 }}>
-                {filtered.map((c) => (
-                  <KhataRow
-                    key={c.id}
-                    customer={c}
-                    accent={theme.accent}
-                    tile={theme.tile}
-                    onPress={() => openCustomer(c.id)}
-                    onSettle={() => openSettle(c.id, c.name, c.amount)}
-                    onRemind={() => remind(c.id, c.name)}
+              <>
+                {/* Search */}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                    height: 48,
+                    borderRadius: Radius.btn,
+                    borderWidth: 1.5,
+                    borderColor: searchFocused ? theme.accent : Colors.border,
+                    backgroundColor: Colors.canvas,
+                    paddingHorizontal: 14,
+                    marginBottom: 14,
+                  }}
+                >
+                  <Sym name="search" size={20} color={Colors.textMuted} />
+                  <TextInput
+                    value={khataSearch}
+                    onChangeText={setKhataSearch}
+                    placeholder="Search customers…"
+                    placeholderTextColor={Colors.textMuted}
+                    onFocus={() => setSearchFocused(true)}
+                    onBlur={() => setSearchFocused(false)}
+                    style={{ flex: 1, fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}
                   />
-                ))}
-              </View>
+                </View>
+
+                {/* Customer list / no-match */}
+                {filtered.length === 0 ? (
+                  <EmptyState
+                    icon="search_off"
+                    tileBg={theme.tile}
+                    tileFg={theme.accent}
+                    title="No customers found"
+                    sub="Try a different name — or add a new credit record below."
+                  />
+                ) : (
+                  <View style={{ gap: 12 }}>
+                    {filtered.map((c) => (
+                      <KhataRow
+                        key={c.id}
+                        customer={c}
+                        accent={theme.accent}
+                        tile={theme.tile}
+                        onPress={() => openCustomer(c.id)}
+                        onSettle={() => openSettle(c.id, c.name, c.amount)}
+                        onRemind={() => remind(c.id, c.name)}
+                      />
+                    ))}
+                  </View>
+                )}
+              </>
             )}
           </>
         )}
