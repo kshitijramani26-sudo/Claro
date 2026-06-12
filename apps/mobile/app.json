@@ -8,7 +8,6 @@
     "scheme": "claro",
     "userInterfaceStyle": "light",
     "ios": {
-      "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSContactsUsageDescription": "Claro suggests customers and staff from your contacts so you can bill and remind them faster.",
         "NSPhotoLibraryUsageDescription": "Claro lets you attach your own UPI QR image to a payment method."
@@ -21,7 +20,13 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "permissions": ["android.permission.READ_CONTACTS"]
+      "permissions": [
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
+      ],
+      "package": "com.kshitijr26.claro"
     },
     "web": {
       "output": "static",

@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
@@ -29,20 +29,14 @@ export default function Splash() {
       >
         {/* Wordmark */}
         <Animated.View entering={ZoomIn.duration(600)} style={{ alignItems: 'center' }}>
-          <View
+          <Image
+            source={require('@/assets/images/icon.png')}
             style={{
               width: 84,
               height: 84,
               borderRadius: 26,
-              backgroundColor: 'rgba(255,255,255,0.14)',
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.22)',
-              alignItems: 'center',
-              justifyContent: 'center',
             }}
-          >
-            <Sym name="storefront" size={46} color="#FFFFFF" />
-          </View>
+          />
           <Text style={{ fontFamily: Font.extrabold, fontSize: 46, letterSpacing: -1.5, color: '#FFFFFF', marginTop: 22 }}>
             Claro
           </Text>

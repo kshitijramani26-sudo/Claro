@@ -12,6 +12,16 @@ Format:
 
 ---
 
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Supabase database online and API configured
+- What changed:
+  - **Database Migration**: Applied the table schema from `database/schema.sql` to the live remote Supabase PostgreSQL database instance.
+  - **API Configuration**: Updated `DATABASE_URL` in `services/api/.env` with the remote Supabase connection string, properly URL-escaping special characters in the database password.
+  - **Verification**: Verified database connectivity and schema successfully using test scripts and ran local `pytest` (all 28 tests passed).
+- Why:
+  - Establishes a cloud-hosted database connection for testers as specified in Step 1.
+- Open items / next:
+  - Proceed with Step 2 (setting up and running the backend to connect with the mobile frontend).
+
 ## [2026-06-12] — Claude Code (Opus 4.8) — Analytics: 4 new sections (top customers, busiest times, averages, payment mix)
 - What changed:
   - **Backend (`routers/analytics.py` + `schemas.py`)**: extended `GET /analytics?period=` (same transaction). Added to the single KPI row: `bill_count`, `prev_bill_count`, `pay_cash/upi/credit` (sum by `payment_mode`). Added aggregations: top-5 customers by spend (bills JOIN customers, GROUP BY), new-vs-repeat (per-customer `min(created_at)` over all their bills — first-bill-in-period ⇒ new, earlier bill ⇒ repeat), weekday histogram (`isodow … AT TIME ZONE 'Asia/Kolkata'`) and peak hour (`extract(hour … IST)`). `AnalyticsRead` gains `bill_count, avg_bill_paise, prev_avg_bill_paise, bills_per_day, prev_bills_per_day, top_customers[], new_customers, repeat_customers, busiest_weekday, peak_hour_label, weekday_totals[7], pay_{cash,upi,credit}_paise`. avg_bill = sales // bill_count; bills_per_day = bill_count / days-in-period (today 1 / week 7 / month elapsed); prev uses the existing `_prev_window`. `_hour_label()` formats `6–7 PM`.

@@ -42,18 +42,38 @@ export async function request<T>(path: string, init?: RequestInit & { json?: unk
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(init.json);
   }
-  const res = await fetch(`${BASE_URL}${path}`, { ...init, headers, body });
-  if (!res.ok) {
-    let code = 'http_error';
-    let message = `Request failed (${res.status})`;
-    try {
-      const data = (await res.json()) as { error?: string; message?: string };
-      code = data.error ?? code;
-      message = data.message ?? message;
-    } catch {
-      // non-JSON error body
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second timeout
+
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, { 
+      ...init, 
+      headers, 
+      body,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let code = 'http_error';
+      let message = `Request failed (${res.status})`;
+      try {
+        const data = (await res.json()) as { error?: string; message?: string };
+        code = data.error ?? code;
+        message = data.message ?? message;
+      } catch {
+        // non-JSON error body
+      }
+      throw new ApiError(res.status, code, message);
     }
-    throw new ApiError(res.status, code, message);
+    return (await res.json()) as T;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if ((error as Error).name === 'AbortError') {
+      throw new Error('Connection timeout: check if backend is running and reachable');
+    }
+    throw error;
   }
-  return (await res.json()) as T;
 }
+

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: claro-backend
+    env: docker
+    rootDirectory: services/api
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: AUTH_DEV_BYPASS
+        value: "true"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        value: "10000"
