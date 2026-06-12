@@ -12,15 +12,18 @@ Format:
 
 ---
 
-## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Supabase database online and API configured
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Backend Render deployment ready & Git committed
 - What changed:
   - **Database Migration**: Applied the table schema from `database/schema.sql` to the live remote Supabase PostgreSQL database instance.
-  - **API Configuration**: Updated `DATABASE_URL` in `services/api/.env` with the remote Supabase connection string, properly URL-escaping special characters in the database password.
+  - **API Configuration**: Updated `DATABASE_URL` in `services/api/.env` with the remote Supabase connection string.
+  - **Dockerfile**: Modified `services/api/Dockerfile` CMD command to bind uvicorn to `$PORT` environment variable provided by Render. Added a root-level `Dockerfile` pointing to the API directory to fix Render auto-detect issues.
+  - **Render Configuration**: Created `render.yaml` at root defining the web service configuration.
   - **Verification**: Verified database connectivity and schema successfully using test scripts and ran local `pytest` (all 28 tests passed).
+  - **Git**: Staged and committed all changed files to git, including configs, icons, and codebase adjustments.
 - Why:
-  - Establishes a cloud-hosted database connection for testers as specified in Step 1.
+  - Establishes a cloud-hosted database connection for testers and prepares the repository for direct deployment to Render as a Dockerized web service, resolving the "no such file or directory" Dockerfile build error.
 - Open items / next:
-  - Proceed with Step 2 (setting up and running the backend to connect with the mobile frontend).
+  - Push the repository to GitHub and deploy the backend service to Render.
 
 ## [2026-06-12] — Claude Code (Opus 4.8) — Analytics: 4 new sections (top customers, busiest times, averages, payment mix)
 - What changed:
