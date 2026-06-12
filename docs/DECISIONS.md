@@ -12,6 +12,14 @@ Format:
 
 ---
 
+## [2026-06-12] — Claude Code (Opus 4.8) — Analytics: 4 new sections (top customers, busiest times, averages, payment mix)
+- What changed:
+  - **Backend (`routers/analytics.py` + `schemas.py`)**: extended `GET /analytics?period=` (same transaction). Added to the single KPI row: `bill_count`, `prev_bill_count`, `pay_cash/upi/credit` (sum by `payment_mode`). Added aggregations: top-5 customers by spend (bills JOIN customers, GROUP BY), new-vs-repeat (per-customer `min(created_at)` over all their bills — first-bill-in-period ⇒ new, earlier bill ⇒ repeat), weekday histogram (`isodow … AT TIME ZONE 'Asia/Kolkata'`) and peak hour (`extract(hour … IST)`). `AnalyticsRead` gains `bill_count, avg_bill_paise, prev_avg_bill_paise, bills_per_day, prev_bills_per_day, top_customers[], new_customers, repeat_customers, busiest_weekday, peak_hour_label, weekday_totals[7], pay_{cash,upi,credit}_paise`. avg_bill = sales // bill_count; bills_per_day = bill_count / days-in-period (today 1 / week 7 / month elapsed); prev uses the existing `_prev_window`. `_hour_label()` formats `6–7 PM`.
+  - **Frontend (`analytics.tsx`, `api.ts`, `types.ts`)**: 4 cards below Best-selling, each its own Card, all driven by the existing period selector (re-fetch on change). §1 Top customers (New/Repeat summary row + ranked rows reusing the best-selling style). §2 Busiest times (headline "Peak: Saturdays, 6–7 PM" + 7 weekday bars, peak bar in accent, others in tile). §3 two `DeltaTile`s (Avg bill value, Bills/day) with green/red `periodDelta` chips ("New" when prev=0). §4 Payment mix (3-segment stacked bar cash=green/UPI=accent/credit=danger + legend with amount & %, "₹X tied up in udhaar" callout). Graceful empty states (— / "No customer sales yet") when the period has no data. `api.ts` maps all new fields (paise→rupees at the edge); `mockApi.getAnalytics` derives plausible values so mock mode shows the cards.
+- Verified: `tsc --noEmit` clean; **pytest 28 passed** (added `test_analytics_sections`: avg_bill == sales//count, payment mix sums to sales, top customer + new/repeat counts, weekday histogram length 7 & sums to sales). Live HTTP hand-check against seed: avg_bill == sales/bill_count across today/week/month, payment-mix % summed to 100, bills_per_day month = 7/12 = 0.58, a ₹1,200 credit bill to a customer surfaced in top_customers with new=1.
+- Notes: `top_customers` only counts bills with a `customer_id` (CREDIT bills / chosen customer) — walk-in CASH/UPI bills aren't attributed, by design. Device screenshots: Android emulator running in mock mode; iOS is the owner's physical device (no access here).
+- Open items / next: on-device visual pass of the 4 cards on iPhone + Android.
+
 ## [2026-06-12] — Claude Code (Sonnet 4.6) — Fix 1/2/3: CTA gradient dark line, professional invoice PDF, correct % change chips
 
 - What changed:

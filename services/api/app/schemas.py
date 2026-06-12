@@ -318,6 +318,12 @@ class StaffDetailRead(BaseModel):
 
 
 # ── analytics ──
+class TopCustomerRead(BaseModel):
+    name: str
+    total_paise: int
+    bills: int
+
+
 class AnalyticsRead(BaseModel):
     net_pnl_paise: int
     sales_paise: int
@@ -327,6 +333,24 @@ class AnalyticsRead(BaseModel):
     spark: list[int]
     prev_net_pnl_paise: int  # same-length prior period for % change
     prev_sales_paise: int
+    # ── bill volume + averages (§3) ──
+    bill_count: int
+    avg_bill_paise: int
+    prev_avg_bill_paise: int
+    bills_per_day: float
+    prev_bills_per_day: float
+    # ── top customers (§1) ──
+    top_customers: list[TopCustomerRead]
+    new_customers: int
+    repeat_customers: int
+    # ── busiest days & times (§2) ──
+    busiest_weekday: str            # '' when no data
+    peak_hour_label: str            # e.g. '6–7 PM', '' when no data
+    weekday_totals: list[int]       # 7 ints, Mon→Sun
+    # ── payment mix (§4) ──
+    pay_cash_paise: int
+    pay_upi_paise: int
+    pay_credit_paise: int
 
 
 class BestSellingRead(BaseModel):

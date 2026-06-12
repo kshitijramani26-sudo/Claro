@@ -89,3 +89,38 @@ async def _fetch(biz, sql, *args):
     from app import db as appdb
     async with appdb.biz_txn(biz.id) as conn:
         return await conn.fetchval(sql, *args)
+
+
+# Analytics extended sections — top customers, averages, payment mix, busiest.
+async def test_analytics_sections(biz):
+    from app.routers.analytics import analytics
+    from .conftest import add_customer
+
+    cust = await add_customer(biz, "Ramesh")
+    # 3 today bills: CASH 100, UPI 200, CREDIT 300 (to Ramesh) — non_gst so grand == subtotal
+    def adhoc(amount):
+        return BillLineCreate(inventory_item_id=None, name="Misc", qty=1, unit_price_paise=amount)
+    await confirm_bill(biz, bill_payload(items=[adhoc(10000)], payment_mode="CASH", gst_mode="non_gst"))
+    await confirm_bill(biz, bill_payload(items=[adhoc(20000)], payment_mode="UPI", gst_mode="non_gst"))
+    await confirm_bill(biz, bill_payload(items=[adhoc(30000)], payment_mode="CREDIT", customer_id=cust, gst_mode="non_gst"))
+
+    a = await analytics("today", biz)
+    # §3 averages
+    assert a.sales_paise == 60000
+    assert a.bill_count == 3
+    assert a.avg_bill_paise == 20000  # 60000 // 3
+    assert a.bills_per_day == 3.0
+    # §4 payment mix sums to sales
+    assert a.pay_cash_paise == 10000
+    assert a.pay_upi_paise == 20000
+    assert a.pay_credit_paise == 30000
+    assert a.pay_cash_paise + a.pay_upi_paise + a.pay_credit_paise == a.sales_paise
+    # §1 top customers + new/repeat (Ramesh's first-ever bill is today → new)
+    assert a.top_customers[0].name == "Ramesh"
+    assert a.top_customers[0].total_paise == 30000
+    assert a.top_customers[0].bills == 1
+    assert a.new_customers == 1
+    assert a.repeat_customers == 0
+    # §2 weekday histogram shape
+    assert len(a.weekday_totals) == 7
+    assert sum(a.weekday_totals) == 60000

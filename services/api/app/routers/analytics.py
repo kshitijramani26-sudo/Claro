@@ -7,10 +7,31 @@ from fastapi import APIRouter, Depends, Response
 
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
-from ..schemas import AnalyticsRead, BestSellingRead, Period
+from ..schemas import AnalyticsRead, BestSellingRead, Period, TopCustomerRead
 from ..util import IST, ist_day_start_utc, ist_month_start_utc, ist_now, ist_today
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _hour_label(h: int) -> str:
+    """24h hour bucket → '6–7 PM' style label."""
+    def fmt(x: int) -> tuple[int, str]:
+        ap = "AM" if x < 12 else "PM"
+        hr = x % 12
+        return (12 if hr == 0 else hr), ap
+    h1, ap1 = fmt(h)
+    h2, ap2 = fmt((h + 1) % 24)
+    return f"{h1}–{h2} {ap1}" if ap1 == ap2 else f"{h1} {ap1}–{h2} {ap2}"
+
+
+def _period_days(period: Period) -> int:
+    if period == "today":
+        return 1
+    if period == "week":
+        return 7
+    return ist_today().day
 
 
 def _window(period: Period) -> datetime:
@@ -69,9 +90,56 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
                         FROM bill_items bi
                         JOIN bills b ON b.id = bi.bill_id
                         LEFT JOIN inventory_items ii ON ii.id = bi.inventory_item_id
-                        WHERE bi.business_id = $1 AND b.created_at >= $3 AND b.created_at < $4), 0) AS prev_net_pnl
+                        WHERE bi.business_id = $1 AND b.created_at >= $3 AND b.created_at < $4), 0) AS prev_net_pnl,
+              -- bill volume (this + prior period) for avg-bill / bills-per-day
+              (SELECT count(*) FROM bills WHERE business_id = $1 AND created_at >= $2) AS bill_count,
+              (SELECT count(*) FROM bills WHERE business_id = $1 AND created_at >= $3 AND created_at < $4) AS prev_bill_count,
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $3 AND created_at < $4), 0) AS prev_sales2,
+              -- payment mix (this period)
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'CASH'), 0) AS pay_cash,
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'UPI'), 0) AS pay_upi,
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'CREDIT'), 0) AS pay_credit
             """,
             biz.id, start, prev_start, prev_end,
+        )
+        # §1 top customers + new/repeat
+        top_rows = await conn.fetch(
+            """SELECT c.name, sum(b.grand_total_paise) AS total, count(*)::int AS bills
+               FROM bills b JOIN customers c ON c.id = b.customer_id
+               WHERE b.business_id = $1 AND b.created_at >= $2
+               GROUP BY c.id, c.name ORDER BY total DESC, bills DESC LIMIT 5""",
+            biz.id, start,
+        )
+        nr = await conn.fetchrow(
+            """SELECT
+                 count(*) FILTER (WHERE first_bill >= $2) AS new_count,
+                 count(*) FILTER (WHERE first_bill <  $2) AS repeat_count
+               FROM (
+                 SELECT b.customer_id, min(b.created_at) AS first_bill
+                 FROM bills b
+                 WHERE b.business_id = $1 AND b.customer_id IS NOT NULL
+                   AND b.customer_id IN (SELECT customer_id FROM bills
+                                         WHERE business_id = $1 AND created_at >= $2 AND customer_id IS NOT NULL)
+                 GROUP BY b.customer_id
+               ) t""",
+            biz.id, start,
+        )
+        # §2 busiest weekday (ISO 1=Mon..7=Sun) + peak hour (IST)
+        dow_rows = await conn.fetch(
+            """SELECT extract(isodow FROM created_at AT TIME ZONE 'Asia/Kolkata')::int AS d,
+                      sum(grand_total_paise) AS v
+               FROM bills WHERE business_id = $1 AND created_at >= $2 GROUP BY 1""",
+            biz.id, start,
+        )
+        hour_rows = await conn.fetch(
+            """SELECT extract(hour FROM created_at AT TIME ZONE 'Asia/Kolkata')::int AS h,
+                      sum(grand_total_paise) AS v
+               FROM bills WHERE business_id = $1 AND created_at >= $2 GROUP BY 1""",
+            biz.id, start,
         )
         if period == "today":
             buckets = await conn.fetch(
@@ -95,11 +163,38 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
             first = ist_today() - timedelta(days=days - 1)
             spark = [vals.get(first + timedelta(days=i), 0) for i in range(days)]
 
+    # §2 weekday totals (Mon→Sun) + headline picks
+    weekday_totals = [0] * 7
+    for r in dow_rows:
+        weekday_totals[r["d"] - 1] = int(r["v"])
+    busiest_weekday = _WEEKDAYS[weekday_totals.index(max(weekday_totals))] if any(weekday_totals) else ""
+    peak_hour_label = ""
+    if hour_rows:
+        peak = max(hour_rows, key=lambda r: r["v"])
+        if peak["v"]:
+            peak_hour_label = _hour_label(int(peak["h"]))
+
+    # §3 averages + per-day rates (this + prior period)
+    bill_count = int(kpi["bill_count"])
+    prev_bill_count = int(kpi["prev_bill_count"])
+    avg_bill = (kpi["sales"] // bill_count) if bill_count else 0
+    prev_avg_bill = (kpi["prev_sales2"] // prev_bill_count) if prev_bill_count else 0
+    days = _period_days(period)
+    prev_days = max(1, (prev_end - prev_start).days)
+    bills_per_day = round(bill_count / days, 2)
+    prev_bills_per_day = round(prev_bill_count / prev_days, 2)
+
     return AnalyticsRead(
         net_pnl_paise=kpi["net_pnl"], sales_paise=kpi["sales"],
         credit_outstanding_paise=kpi["credit_out"], inventory_value_paise=kpi["inventory_value"],
         top_staff=kpi["top_staff"], spark=spark,
         prev_net_pnl_paise=kpi["prev_net_pnl"], prev_sales_paise=kpi["prev_sales"],
+        bill_count=bill_count, avg_bill_paise=avg_bill, prev_avg_bill_paise=prev_avg_bill,
+        bills_per_day=bills_per_day, prev_bills_per_day=prev_bills_per_day,
+        top_customers=[TopCustomerRead(name=r["name"], total_paise=int(r["total"]), bills=r["bills"]) for r in top_rows],
+        new_customers=int(nr["new_count"] or 0), repeat_customers=int(nr["repeat_count"] or 0),
+        busiest_weekday=busiest_weekday, peak_hour_label=peak_hour_label, weekday_totals=weekday_totals,
+        pay_cash_paise=kpi["pay_cash"], pay_upi_paise=kpi["pay_upi"], pay_credit_paise=kpi["pay_credit"],
     )
 
 

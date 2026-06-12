@@ -106,8 +106,8 @@ export const staffDetail: Record<string, StaffDetail> = {
   },
 };
 
-// Tab 5 — Analytics
-export const analytics: Record<PeriodKey, AnalyticsPeriod> = {
+// Tab 5 — Analytics (only the headline KPIs + spark; mockApi derives the rest)
+export const analytics: Record<PeriodKey, Pick<AnalyticsPeriod, 'netPnl' | 'sales' | 'credit' | 'inventory' | 'topStaff' | 'spark' | 'prevNetPnl' | 'prevSales'>> = {
   today: { netPnl: 9400, sales: 24850, credit: 142300, inventory: 286400, topStaff: 'Amit Kumar', spark: [12, 18, 9, 22, 16, 25, 24], prevNetPnl: 8480, prevSales: 21200 },
   week: { netPnl: 58200, sales: 168400, credit: 142300, inventory: 286400, topStaff: 'Amit Kumar', spark: [120, 98, 140, 110, 165, 180, 168], prevNetPnl: 53900, prevSales: 148400 },
   month: { netPnl: 184200, sales: 684200, credit: 142300, inventory: 286400, topStaff: 'Amit Kumar', spark: [420, 510, 480, 560, 600, 540, 620, 580, 650, 700, 660, 684], prevNetPnl: 162800, prevSales: 618500 },

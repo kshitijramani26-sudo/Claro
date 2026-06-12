@@ -321,12 +321,24 @@ const realApi = {
       net_pnl_paise: number; sales_paise: number; credit_outstanding_paise: number;
       inventory_value_paise: number; top_staff: string; spark: number[];
       prev_net_pnl_paise: number; prev_sales_paise: number;
+      bill_count: number; avg_bill_paise: number; prev_avg_bill_paise: number;
+      bills_per_day: number; prev_bills_per_day: number;
+      top_customers: { name: string; total_paise: number; bills: number }[];
+      new_customers: number; repeat_customers: number;
+      busiest_weekday: string; peak_hour_label: string; weekday_totals: number[];
+      pay_cash_paise: number; pay_upi_paise: number; pay_credit_paise: number;
     }>(`/analytics?period=${period}`);
     return {
       netPnl: r(a.net_pnl_paise), sales: r(a.sales_paise), credit: r(a.credit_outstanding_paise),
       inventory: r(a.inventory_value_paise), topStaff: a.top_staff,
       spark: a.spark.length >= 2 ? a.spark : [0, ...a.spark, 0],
       prevNetPnl: r(a.prev_net_pnl_paise), prevSales: r(a.prev_sales_paise),
+      billCount: a.bill_count, avgBill: r(a.avg_bill_paise), prevAvgBill: r(a.prev_avg_bill_paise),
+      billsPerDay: a.bills_per_day, prevBillsPerDay: a.prev_bills_per_day,
+      topCustomers: a.top_customers.map((c) => ({ name: c.name, total: r(c.total_paise), bills: c.bills })),
+      newCustomers: a.new_customers, repeatCustomers: a.repeat_customers,
+      busiestWeekday: a.busiest_weekday, peakHourLabel: a.peak_hour_label, weekdayTotals: a.weekday_totals.map(r),
+      payCash: r(a.pay_cash_paise), payUpi: r(a.pay_upi_paise), payCredit: r(a.pay_credit_paise),
     };
   },
   async getBestSelling(period: PeriodKey = 'month'): Promise<BestSelling[]> {
@@ -835,10 +847,28 @@ const mockApi = {
     const netPnl = period === 'today' ? mSummary.todaysSales * 0.4 : period === 'week' ? mSummary.todaysSales * 2.8 : mSummary.todaysSales * 12;
     const prevSales = period === 'today' ? mSummary.yesterdaySales : period === 'week' ? mSummary.yesterdaySales * 7 : mSummary.yesterdaySales * 30;
     const prevNetPnl = prevSales * 0.4;
+
+    const billCount = period === 'today' ? mSummary.todaysBills : period === 'week' ? mSummary.todaysBills * 7 : mSummary.todaysBills * 30;
+    const prevBillCount = Math.round(billCount * 0.9);
+    const days = period === 'today' ? 1 : period === 'week' ? 7 : 30;
+    const avgBill = billCount ? Math.round(sales / billCount) : 0;
+    const prevAvgBill = prevBillCount ? Math.round(prevSales / prevBillCount) : 0;
+    const payCash = Math.round(sales * 0.5);
+    const payUpi = Math.round(sales * 0.32);
+    const payCredit = Math.max(0, sales - payCash - payUpi);
+    const weekdayTotals = [0.12, 0.13, 0.11, 0.15, 0.16, 0.21, 0.12].map((f) => Math.round(sales * f));
+    const topCustomers = mKhata.slice(0, 5).map((c, i) => ({ name: c.name, total: Math.round(c.amount * 1.5), bills: 8 - i }));
     return {
       netPnl, sales, credit: mSummary.pendingKhata, inventory: totalValue,
       topStaff: topStaffName, spark: mAnalytics[period]?.spark ?? [0, 0],
       prevNetPnl, prevSales,
+      billCount, avgBill, prevAvgBill,
+      billsPerDay: Math.round((billCount / days) * 100) / 100,
+      prevBillsPerDay: Math.round((prevBillCount / days) * 100) / 100,
+      topCustomers, newCustomers: 2, repeatCustomers: Math.max(0, topCustomers.length - 2),
+      busiestWeekday: sales > 0 ? 'Saturday' : '', peakHourLabel: sales > 0 ? '6–7 PM' : '',
+      weekdayTotals,
+      payCash, payUpi, payCredit,
     };
   },
   async getBestSelling(period: PeriodKey = 'month'): Promise<BestSelling[]> {

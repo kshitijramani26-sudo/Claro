@@ -92,6 +92,12 @@ export interface StaffDetail {
   advances: StaffAdvance[];
 }
 
+export interface TopCustomer {
+  name: string;
+  total: number;
+  bills: number;
+}
+
 export interface AnalyticsPeriod {
   netPnl: number;
   sales: number;
@@ -102,6 +108,21 @@ export interface AnalyticsPeriod {
   /** Prior same-length period values — for period-over-period % change chips. */
   prevNetPnl: number;
   prevSales: number;
+  // ── extended sections ──
+  billCount: number;
+  avgBill: number;
+  prevAvgBill: number;
+  billsPerDay: number;
+  prevBillsPerDay: number;
+  topCustomers: TopCustomer[];
+  newCustomers: number;
+  repeatCustomers: number;
+  busiestWeekday: string;
+  peakHourLabel: string;
+  weekdayTotals: number[];
+  payCash: number;
+  payUpi: number;
+  payCredit: number;
 }
 
 export type PeriodKey = 'today' | 'week' | 'month';
