@@ -121,9 +121,6 @@ export function CreateBillOverlay() {
     const upi = bill.paymentMode === 'UPI' ? savedUpi ?? (await api.getBillUpi(bill.id).catch(() => null)) : null;
     const link = await api.getBillShareLink(bill.id).catch(() => null);
     return {
-      upiUri: upi?.deeplink ?? null,
-      qrPngBase64: upi?.qrPngBase64 ?? null,
-      upiId: upi?.upiId ?? chosenMethod?.upiId ?? null,
       pdfUrl: link,
       customerPhone: cb.custPhone || null,
     };

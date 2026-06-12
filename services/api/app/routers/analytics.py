@@ -21,9 +21,27 @@ def _window(period: Period) -> datetime:
     return ist_month_start_utc()
 
 
+def _prev_window(period: Period) -> tuple[datetime, datetime]:
+    """Return (prev_start, prev_end) — the immediately prior same-length window."""
+    today = ist_today()
+    if period == "today":
+        prev_start = ist_day_start_utc(today - timedelta(days=1))
+        prev_end = ist_day_start_utc(today)
+    elif period == "week":
+        prev_start = ist_day_start_utc(today - timedelta(days=13))
+        prev_end = ist_day_start_utc(today - timedelta(days=6))
+    else:  # month — previous calendar month
+        first_of_this = today.replace(day=1)
+        last_of_prev = first_of_this - timedelta(days=1)
+        prev_start = ist_day_start_utc(last_of_prev.replace(day=1))
+        prev_end = ist_day_start_utc(first_of_this)
+    return prev_start, prev_end
+
+
 @router.get("", response_model=AnalyticsRead)
 async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get_current_business)) -> AnalyticsRead:
     start = _window(period)
+    prev_start, prev_end = _prev_window(period)
     async with biz_txn(biz.id) as conn:
         kpi = await conn.fetchrow(
             """
@@ -43,9 +61,17 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
                         WHERE business_id = $1), 0) AS inventory_value,
               COALESCE((SELECT s.name FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
                         WHERE l.business_id = $1 AND l.type = 'sale_attrib' AND l.created_at >= $2
-                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') AS top_staff
+                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') AS top_staff,
+              -- prior period for % change chips
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $3 AND created_at < $4), 0) AS prev_sales,
+              COALESCE((SELECT sum(bi.line_total_paise - COALESCE(bi.qty * ii.cost_paise, 0))
+                        FROM bill_items bi
+                        JOIN bills b ON b.id = bi.bill_id
+                        LEFT JOIN inventory_items ii ON ii.id = bi.inventory_item_id
+                        WHERE bi.business_id = $1 AND b.created_at >= $3 AND b.created_at < $4), 0) AS prev_net_pnl
             """,
-            biz.id, start,
+            biz.id, start, prev_start, prev_end,
         )
         if period == "today":
             buckets = await conn.fetch(
@@ -73,6 +99,7 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
         net_pnl_paise=kpi["net_pnl"], sales_paise=kpi["sales"],
         credit_outstanding_paise=kpi["credit_out"], inventory_value_paise=kpi["inventory_value"],
         top_staff=kpi["top_staff"], spark=spark,
+        prev_net_pnl_paise=kpi["prev_net_pnl"], prev_sales_paise=kpi["prev_sales"],
     )
 
 

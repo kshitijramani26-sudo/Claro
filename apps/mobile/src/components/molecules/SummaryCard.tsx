@@ -15,13 +15,14 @@ interface Props {
   value: number;
   valueColor?: string;
   sub: string;
-  /** Green delta chip, e.g. "▲ 12%". */
+  /** Delta chip label, e.g. "▲ 12%". Defaults to green; pass deltaDown=true for red. */
   delta?: string;
+  deltaDown?: boolean;
   children?: React.ReactNode;
 }
 
 /** Hero money card (Today's Sales, Net P&L, Stock value) — radius 16, padding 22-24. */
-export function SummaryCard({ icon, tileBg, tileFg, label, value, valueColor, sub, delta, children }: Props) {
+export function SummaryCard({ icon, tileBg, tileFg, label, value, valueColor, sub, delta, deltaDown, children }: Props) {
   return (
     <Card radius={Radius.hero} pad={22}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -29,7 +30,7 @@ export function SummaryCard({ icon, tileBg, tileFg, label, value, valueColor, su
           <IconTile name={icon} bg={tileBg} fg={tileFg} size={40} iconSize={22} radius={Radius.btn} />
           <Text style={Type.cardLabel}>{label}</Text>
         </View>
-        {delta ? <Badge label={delta} bg={Colors.successTile} fg={Colors.success} /> : null}
+        {delta ? <Badge label={delta} bg={deltaDown ? Colors.dangerTile : Colors.successTile} fg={deltaDown ? Colors.danger : Colors.success} /> : null}
       </View>
       <Money value={value} style={[Type.heroMoney, { marginTop: 14 }, valueColor ? { color: valueColor } : null]} />
       <Text style={{ fontFamily: Font.medium, fontSize: 13, color: Colors.textSecondary, marginTop: 6 }}>{sub}</Text>

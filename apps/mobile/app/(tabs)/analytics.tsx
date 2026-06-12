@@ -19,7 +19,7 @@ import { PinnedCTA } from '@/components/organisms/PinnedCTA';
 import { BottomSheet } from '@/components/organisms/BottomSheet';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { formatINR } from '@/lib/format';
+import { formatINR, periodDelta } from '@/lib/format';
 import { analyticsHtml, analyticsCanvasHtml, type AnalyticsExport } from '@/lib/analyticsExport';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, MetricTiles, Radius } from '@/theme/tokens';
@@ -123,7 +123,12 @@ export default function Analytics() {
                     style={[{ fontFamily: Font.extrabold, fontSize: 40, letterSpacing: -1.2, color: Colors.textPrimary, marginTop: 10 }, tnum]}
                   />
                 </View>
-                <Badge label="▲ 8.4%" bg={Colors.successTile} fg={Colors.success} radius={9} />
+                {(() => {
+                  const d = data ? periodDelta(data.netPnl, data.prevNetPnl) : null;
+                  return d ? (
+                    <Badge label={d.label} bg={d.up ? Colors.successTile : Colors.dangerTile} fg={d.up ? Colors.success : Colors.danger} radius={9} />
+                  ) : null;
+                })()}
               </View>
               <Sparkline data={data?.spark ?? [0, 0]} accent={theme.accent} />
             </Card>

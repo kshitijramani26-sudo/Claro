@@ -200,6 +200,7 @@ class SummaryRead(BaseModel):
     month_sales_paise: int
     month_label: str
     top_staff: str
+    yesterday_sales_paise: int  # for the ▲/▼ % chip on the billing home hero
 
 
 class ActivityRead(BaseModel):
@@ -324,6 +325,8 @@ class AnalyticsRead(BaseModel):
     inventory_value_paise: int
     top_staff: str
     spark: list[int]
+    prev_net_pnl_paise: int  # same-length prior period for % change
+    prev_sales_paise: int
 
 
 class BestSellingRead(BaseModel):

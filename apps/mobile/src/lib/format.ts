@@ -39,6 +39,21 @@ export function timeAgo(iso: string): string {
   return weeks === 1 ? '1 week ago' : `${weeks} weeks ago`;
 }
 
+/**
+ * Period-over-period % change chip label.
+ * Returns "▲ N%" (green), "▼ N%" (red), "New" (prev was zero with positive current), or null (no change / both zero).
+ * Call site should use Colors.success for ▲ and Colors.danger for ▼.
+ */
+export function periodDelta(current: number, previous: number): { label: string; up: boolean } | null {
+  if (previous === 0) return current > 0 ? { label: 'New', up: true } : null;
+  const pct = ((current - previous) / previous) * 100;
+  const rounded = Math.round(Math.abs(pct));
+  if (rounded === 0) return null;
+  return pct > 0
+    ? { label: `▲ ${rounded}%`, up: true }
+    : { label: `▼ ${rounded}%`, up: false };
+}
+
 /** "11 Jun" style short date for ledger rows. */
 export function shortDate(iso: string): string {
   const d = new Date(iso);

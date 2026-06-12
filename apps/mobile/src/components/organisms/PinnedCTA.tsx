@@ -17,6 +17,19 @@ interface Props {
 }
 
 /**
+ * Convert a 6-digit hex color to rgba(r,g,b,0).
+ * Using 'transparent' (rgba(0,0,0,0)) causes the gradient to interpolate
+ * through near-black tones, producing the dark hairline above the button.
+ */
+function hexToTransparent(hex: string): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},0)`;
+}
+
+/**
  * Pinned CTA region — absolute above the nav, fade-from-transparent gradient
  * into the page background, full-width 54px brand button.
  */
@@ -24,7 +37,7 @@ export function PinnedCTA({ label, onPress, disabled, icon, iconNode, pageBg, bo
   return (
     <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20 }}>
       <LinearGradient
-        colors={['transparent', pageBg]}
+        colors={[hexToTransparent(pageBg), pageBg]}
         locations={[0, 0.38]}
         style={{ paddingTop: 16, paddingHorizontal: 20, paddingBottom: 14 + bottomInset }}
       >

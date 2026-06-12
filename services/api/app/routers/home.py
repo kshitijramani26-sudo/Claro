@@ -4,14 +4,17 @@ from fastapi import APIRouter, Depends
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
 from ..schemas import ActivityRead, SummaryRead
-from ..util import ist_day_start_utc, ist_month_start_utc, month_label
+from ..util import ist_day_start_utc, ist_month_start_utc, ist_today, month_label
+from datetime import timedelta
 
 router = APIRouter(tags=["home"])
 
 
 @router.get("/summary/today", response_model=SummaryRead)
 async def summary_today(biz: CurrentBusiness = Depends(get_current_business)) -> SummaryRead:
-    day0 = ist_day_start_utc()
+    today = ist_today()
+    day0 = ist_day_start_utc(today)
+    yest0 = ist_day_start_utc(today - timedelta(days=1))
     month0 = ist_month_start_utc()
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
@@ -29,14 +32,17 @@ async def summary_today(biz: CurrentBusiness = Depends(get_current_business)) ->
                         WHERE business_id = $1 AND created_at >= $3), 0)             AS month_sales,
               COALESCE((SELECT s.name FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
                         WHERE l.business_id = $1 AND l.type = 'sale_attrib' AND l.created_at >= $3
-                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') AS top_staff
+                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') AS top_staff,
+              COALESCE((SELECT sum(grand_total_paise) FROM bills
+                        WHERE business_id = $1 AND created_at >= $4 AND created_at < $2), 0) AS yesterday_sales
             """,
-            biz.id, day0, month0,
+            biz.id, day0, month0, yest0,
         )
     return SummaryRead(
         todays_sales_paise=row["todays_sales"], todays_bills=row["todays_bills"],
         pending_khata_paise=row["pending_khata"], low_stock=row["low_stock"],
         month_sales_paise=row["month_sales"], month_label=month_label(), top_staff=row["top_staff"],
+        yesterday_sales_paise=row["yesterday_sales"],
     )
 
 

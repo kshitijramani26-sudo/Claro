@@ -41,7 +41,10 @@ interface WireBill {
   subtotal_paise: number; discount_paise: number; taxable_paise: number; cgst_paise: number;
   sgst_paise: number; igst_paise: number; tax_total_paise: number; grand_total_paise: number;
   payment_mode: 'CASH' | 'UPI' | 'CREDIT'; customer_name: string; created_at: string;
-  items: { name: string; qty: number; unit_price_paise: number; line_total_paise: number }[];
+  items: {
+    name: string; qty: number; unit_price_paise: number; line_total_paise: number;
+    hsn_code?: string; tax_rate_bps?: number; taxable_paise?: number; tax_paise?: number;
+  }[];
 }
 
 function mapBusiness(w: WireBusiness): Business {
@@ -62,7 +65,12 @@ function mapBill(w: WireBill): BillResult {
     taxTotal: r(w.tax_total_paise), grandTotal: r(w.grand_total_paise),
     paymentMode: w.payment_mode, customerName: w.customer_name,
     date: new Date(w.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    items: w.items.map((i) => ({ name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.line_total_paise) })),
+    items: w.items.map((i) => ({
+      name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.line_total_paise),
+      hsnCode: i.hsn_code, taxRateBps: i.tax_rate_bps,
+      taxable: i.taxable_paise != null ? r(i.taxable_paise) : undefined,
+      taxPaise: i.tax_paise != null ? r(i.tax_paise) : undefined,
+    })),
   };
 }
 
@@ -148,11 +156,13 @@ const realApi = {
     const s = await request<{
       todays_sales_paise: number; todays_bills: number; pending_khata_paise: number;
       low_stock: number; month_sales_paise: number; month_label: string; top_staff: string;
+      yesterday_sales_paise: number;
     }>('/summary/today');
     return {
       todaysSales: r(s.todays_sales_paise), todaysBills: s.todays_bills,
       pendingKhata: r(s.pending_khata_paise), lowStock: s.low_stock,
       monthSales: r(s.month_sales_paise), topStaff: s.top_staff, monthLabel: s.month_label,
+      yesterdaySales: r(s.yesterday_sales_paise),
     };
   },
   async getActivity(limit = 20): Promise<Activity[]> {
@@ -310,11 +320,13 @@ const realApi = {
     const a = await request<{
       net_pnl_paise: number; sales_paise: number; credit_outstanding_paise: number;
       inventory_value_paise: number; top_staff: string; spark: number[];
+      prev_net_pnl_paise: number; prev_sales_paise: number;
     }>(`/analytics?period=${period}`);
     return {
       netPnl: r(a.net_pnl_paise), sales: r(a.sales_paise), credit: r(a.credit_outstanding_paise),
       inventory: r(a.inventory_value_paise), topStaff: a.top_staff,
       spark: a.spark.length >= 2 ? a.spark : [0, ...a.spark, 0],
+      prevNetPnl: r(a.prev_net_pnl_paise), prevSales: r(a.prev_sales_paise),
     };
   },
   async getBestSelling(period: PeriodKey = 'month'): Promise<BestSelling[]> {
@@ -819,13 +831,14 @@ const mockApi = {
       }
     });
 
+    const sales = period === 'today' ? mSummary.todaysSales : period === 'week' ? mSummary.todaysSales * 7 : mSummary.todaysSales * 30;
+    const netPnl = period === 'today' ? mSummary.todaysSales * 0.4 : period === 'week' ? mSummary.todaysSales * 2.8 : mSummary.todaysSales * 12;
+    const prevSales = period === 'today' ? mSummary.yesterdaySales : period === 'week' ? mSummary.yesterdaySales * 7 : mSummary.yesterdaySales * 30;
+    const prevNetPnl = prevSales * 0.4;
     return {
-      netPnl: period === 'today' ? mSummary.todaysSales * 0.4 : period === 'week' ? mSummary.todaysSales * 2.8 : mSummary.todaysSales * 12,
-      sales: period === 'today' ? mSummary.todaysSales : period === 'week' ? mSummary.todaysSales * 7 : mSummary.todaysSales * 30,
-      credit: mSummary.pendingKhata,
-      inventory: totalValue,
-      topStaff: topStaffName,
-      spark: mAnalytics[period]?.spark ?? [0, 0],
+      netPnl, sales, credit: mSummary.pendingKhata, inventory: totalValue,
+      topStaff: topStaffName, spark: mAnalytics[period]?.spark ?? [0, 0],
+      prevNetPnl, prevSales,
     };
   },
   async getBestSelling(period: PeriodKey = 'month'): Promise<BestSelling[]> {

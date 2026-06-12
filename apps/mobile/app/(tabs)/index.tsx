@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/molecules/EmptyState';
 import { PinnedCTA } from '@/components/organisms/PinnedCTA';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { formatINRShort } from '@/lib/format';
+import { formatINRShort, periodDelta } from '@/lib/format';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, MetricTiles, avatarShadow } from '@/theme/tokens';
 import { Font, Type } from '@/theme/typography';
@@ -102,7 +102,8 @@ export default function Billing() {
                 label="Today's Sales"
                 value={sum?.todaysSales ?? 0}
                 sub={`${sum?.todaysBills ?? 0} bills today`}
-                delta={(sum?.todaysBills ?? 0) > 0 ? '▲ 12%' : undefined}
+                delta={sum ? (periodDelta(sum.todaysSales, sum.yesterdaySales)?.label) : undefined}
+                deltaDown={sum ? !(periodDelta(sum.todaysSales, sum.yesterdaySales)?.up ?? true) : false}
               />
 
               {/* Mini stats */}

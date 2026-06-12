@@ -15,6 +15,8 @@ export interface Summary {
   monthSales: number;
   topStaff: string;
   monthLabel: string;
+  /** Yesterday's sales for the ▲/▼ % delta chip on billing home. */
+  yesterdaySales: number;
 }
 
 export type ActivityKind = 'sale' | 'credit' | 'settle' | 'advance' | 'salary';
@@ -97,6 +99,9 @@ export interface AnalyticsPeriod {
   inventory: number;
   topStaff: string;
   spark: number[];
+  /** Prior same-length period values — for period-over-period % change chips. */
+  prevNetPnl: number;
+  prevSales: number;
 }
 
 export type PeriodKey = 'today' | 'week' | 'month';
@@ -161,7 +166,20 @@ export interface BillResult {
   paymentMode: 'CASH' | 'UPI' | 'CREDIT';
   customerName: string;
   date: string;
-  items: { name: string; qty: number; price: number; lineTotal: number }[];
+  items: {
+    name: string;
+    qty: number;
+    price: number;
+    lineTotal: number;
+    /** HSN code (from backend; present for inventory-linked items). */
+    hsnCode?: string;
+    /** Tax slab in basis points (0/500/1200/1800/2800). */
+    taxRateBps?: number;
+    /** Taxable amount for this line (rupees). */
+    taxable?: number;
+    /** Tax amount for this line (rupees). */
+    taxPaise?: number;
+  }[];
 }
 
 export interface UpiInfo {

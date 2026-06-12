@@ -46,7 +46,7 @@ export function InvoiceSummaryOverlay() {
     if (!bill) return {};
     const upi = isUpi ? await api.getBillUpi(bill.id).catch(() => null) : null;
     const link = await api.getBillShareLink(bill.id).catch(() => null);
-    return { upiUri: upi?.deeplink ?? upiUri, qrPngBase64: upi?.qrPngBase64 ?? null, upiId: upi?.upiId ?? defaultMethod?.upiId ?? null, pdfUrl: link };
+    return { pdfUrl: link };
   };
 
   return (
