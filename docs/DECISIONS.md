@@ -12,18 +12,17 @@ Format:
 
 ---
 
-## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Backend Render deployment ready & Git committed
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Backend live on Render & Supabase online
 - What changed:
   - **Database Migration**: Applied the table schema from `database/schema.sql` to the live remote Supabase PostgreSQL database instance.
-  - **API Configuration**: Updated `DATABASE_URL` in `services/api/.env` with the remote Supabase connection string.
-  - **Dockerfile**: Modified `services/api/Dockerfile` CMD command to bind uvicorn to `$PORT` environment variable provided by Render. Added a root-level `Dockerfile` pointing to the API directory to fix Render auto-detect issues.
-  - **Render Configuration**: Created `render.yaml` at root defining the web service configuration.
-  - **Verification**: Verified database connectivity and schema successfully using test scripts and ran local `pytest` (all 28 tests passed).
-  - **Git**: Staged and committed all changed files to git, including configs, icons, and codebase adjustments.
+  - **API Configuration**: Configured `DATABASE_URL` with the URL-encoded Supabase connection pooling URI (using the `aws-1-ap-south-1` pooler on port 6543 to resolve IPv6/IPv4 compatibility issues on Render).
+  - **Dockerfile**: Modified `services/api/Dockerfile` CMD command to bind uvicorn to `$PORT` and added a root-level `Dockerfile` to enable Render auto-detection.
+  - **Render Deployment**: Configured and deployed the Dockerized FastAPI service to Render (now live at `https://claro-backend-3zh8.onrender.com`).
+  - **Verification**: Verified database connectivity and API health endpoint (`https://claro-backend-3zh8.onrender.com/health` successfully returns `{"ok":true}`).
 - Why:
-  - Establishes a cloud-hosted database connection for testers and prepares the repository for direct deployment to Render as a Dockerized web service, resolving the "no such file or directory" Dockerfile build error.
+  - Establishes a persistent, cloud-hosted API and database backend for the mobile application.
 - Open items / next:
-  - Push the repository to GitHub and deploy the backend service to Render.
+  - Step 3: Configure the mobile app (`apps/mobile`) to connect to the new live Render backend.
 
 ## [2026-06-12] — Claude Code (Opus 4.8) — Analytics: 4 new sections (top customers, busiest times, averages, payment mix)
 - What changed:
