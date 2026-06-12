@@ -4,8 +4,7 @@ import { ObFrame } from '@/components/organisms/ObFrame';
 import { Input } from '@/components/atoms/Input';
 import { Select } from '@/components/atoms/Select';
 import { useAppStore, useBrand } from '@/state/store';
-
-const INDUSTRIES = ['Kirana / Grocery', 'Apparel', 'Electronics', 'Pharmacy', 'Restaurant', 'Services', 'Other'];
+import { INDUSTRIES } from '@/data/industries';
 
 /** Step 3 — business profile. */
 export default function Profile() {

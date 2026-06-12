@@ -17,14 +17,9 @@ import { GST_STATES, stateName } from '@/lib/states';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
 import { useAppStore, useBrand } from '@/state/store';
+import { INDUSTRIES } from '@/data/industries';
 
 const BG = '#F6F5FB';
-
-const INDUSTRIES = [
-  'Grocery / Kirana', 'Fashion & Apparel', 'Salon & Spa', 'Optical', 'Pharmacy / Medical',
-  'Restaurant & Café', 'Electronics', 'Mobile & Accessories', 'Hardware', 'Stationery',
-  'Footwear', 'Jewellery', 'General / Services', 'Other',
-];
 
 /** Profile / Settings — business, payments, account, preferences, logout. */
 export default function Profile() {
