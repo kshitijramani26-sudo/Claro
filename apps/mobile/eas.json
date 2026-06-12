@@ -13,8 +13,10 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_USE_MOCK_DATA": "true",
-        "EXPO_PUBLIC_DEV_AUTH": "true"
+        "EXPO_PUBLIC_API_BASE_URL": "https://claro-backend-3zh8.onrender.com",
+        "EXPO_PUBLIC_USE_MOCK_DATA": "false",
+        "EXPO_PUBLIC_BETA_AUTH": "true",
+        "EXPO_PUBLIC_DEV_AUTH": "false"
       }
     },
     "production": {}
