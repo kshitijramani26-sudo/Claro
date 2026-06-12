@@ -10,6 +10,15 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — EAS Android Build Configuration
+- What changed:
+  - **EAS Profile Configuration**: Modified `eas.json` preview profile environment variables to configure production API Base URL (`https://claro-backend-3zh8.onrender.com`), disable mock data, disable dev bypass, and enable Beta Auth.
+  - **App Verification**: Verified `app.json` contains correct package configuration (`com.kshitijr26.claro`), icons, splash, and contacts permission settings.
+- Why:
+  - Prepare configuration to compile installable Android APKs targeting the live Render/Supabase backend.
+- Open items / next:
+  - Run EAS login and EAS cloud build.
+
 ## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Mobile Session Persistence
 - What changed:
   - **Storage Persistence**: Added filesystem-based token persistence in `supabase.ts` using Expo File System v19 (`Paths.document` and `File`).
