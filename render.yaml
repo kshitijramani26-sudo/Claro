@@ -13,6 +13,10 @@ services:
         sync: false
       - key: AUTH_DEV_BYPASS
         value: "true"
+      - key: BETA_AUTH
+        value: "true"
+      - key: BETA_LOGIN_CODE
+        value: "123456"
       - key: HOST
         value: "0.0.0.0"
       - key: PORT
