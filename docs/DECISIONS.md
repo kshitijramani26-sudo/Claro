@@ -10,7 +10,15 @@ Format:
 - Open items / next:
 ```
 
----
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Mobile Session Persistence
+- What changed:
+  - **Storage Persistence**: Added filesystem-based token persistence in `supabase.ts` using Expo File System v19 (`Paths.document` and `File`).
+  - **Session Restoration**: Updated root `_layout.tsx` to read the stored token at startup, set it in the HTTP client headers, and check for an existing business profile.
+  - **Flicker-free Startup**: Holds splash screen hide sequence until the session check resolves, routing logged-in users directly to `/(tabs)`.
+- Why:
+  - Already logged in users should bypass the onboarding/OTP screens on cold restart.
+- Open items / next:
+  - Test end-to-end mobile flow.
 
 ## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Temporary BETA Auth without SMS
 - What changed:

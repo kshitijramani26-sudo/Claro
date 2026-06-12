@@ -3,15 +3,17 @@
  *  • DEV (EXPO_PUBLIC_DEV_AUTH=true): no Supabase call; any 6-digit OTP passes and
  *    the API receives "dev:<phone>" (accepted only when the API runs AUTH_DEV_BYPASS).
  *  • REAL: supabase-js signInWithOtp/verifyOtp; the session JWT goes to the API.
- * Session is kept in memory (no storage APIs per project rules) — re-login on cold start.
+ * Session is now persisted in local storage so that already logged in users bypass login.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { File, Paths } from 'expo-file-system';
 import { request, setAuthToken } from './http';
 
 const DEV_AUTH = (process.env.EXPO_PUBLIC_DEV_AUTH ?? 'true') === 'true';
 const BETA_AUTH = (process.env.EXPO_PUBLIC_BETA_AUTH ?? 'false') === 'true';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const TOKEN_FILE = new File(Paths.document, 'auth_token.txt');
 
 let client: SupabaseClient | null = null;
 
@@ -22,6 +24,35 @@ function supabase(): SupabaseClient {
     });
   }
   return client;
+}
+
+export async function saveSessionToken(token: string): Promise<void> {
+  try {
+    TOKEN_FILE.write(token);
+  } catch (e) {
+    console.error('Error saving session token:', e);
+  }
+}
+
+export async function loadSessionToken(): Promise<string | null> {
+  try {
+    if (TOKEN_FILE.exists) {
+      return await TOKEN_FILE.text();
+    }
+  } catch (e) {
+    console.error('Error loading session token:', e);
+  }
+  return null;
+}
+
+export async function clearSessionToken(): Promise<void> {
+  try {
+    if (TOKEN_FILE.exists) {
+      TOKEN_FILE.delete();
+    }
+  } catch (e) {
+    console.error('Error clearing session token:', e);
+  }
 }
 
 /** "98765 43210" → "+919876543210" */
@@ -52,22 +83,33 @@ export async function verifyOtp(phone: string, code: string): Promise<void> {
       json: { phone: e164, code },
     });
     setAuthToken(data.access_token);
+    await saveSessionToken(data.access_token);
     return;
   }
   if (DEV_AUTH) {
     if (code.replace(/\D/g, '').length !== 6) throw new Error('Enter the 6-digit code');
-    setAuthToken(`dev:${e164}`);
+    const token = `dev:${e164}`;
+    setAuthToken(token);
+    await saveSessionToken(token);
     return;
   }
   const { data, error } = await supabase().auth.verifyOtp({ phone: e164, token: code, type: 'sms' });
   if (error || !data.session) throw new Error(error?.message ?? 'Verification failed');
   setAuthToken(data.session.access_token);
+  await saveSessionToken(data.session.access_token);
   supabase().auth.onAuthStateChange((_event, session) => {
-    setAuthToken(session?.access_token ?? null);
+    const token = session?.access_token ?? null;
+    setAuthToken(token);
+    if (token) {
+      saveSessionToken(token);
+    } else {
+      clearSessionToken();
+    }
   });
 }
 
 export async function signOut(): Promise<void> {
   if (!DEV_AUTH && !BETA_AUTH) await supabase().auth.signOut();
   setAuthToken(null);
+  await clearSessionToken();
 }
