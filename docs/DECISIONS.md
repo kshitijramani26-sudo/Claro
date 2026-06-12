@@ -12,6 +12,19 @@ Format:
 
 ---
 
+## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Temporary BETA Auth without SMS
+- What changed:
+  - **Backend Settings**: Added `beta_auth` (bool) and `beta_login_code` (str) to `config.py`.
+  - **Backend Router**: Created `app/routers/auth.py` exposing `/auth/login` and `/auth/verify`. Uses in-memory rate limiting by IP and Phone, checks code against `BETA_LOGIN_CODE`, and returns an HS256-signed Supabase-compatible JWT access token.
+  - **Backend Integration**: Registered `/auth` router in `main.py` and added test cases to `tests/test_new_features.py`. Passed 29/29 pytest tests.
+  - **Mobile Client**: Modified `src/lib/supabase.ts` to redirect authentication calls to our backend API when `EXPO_PUBLIC_BETA_AUTH=true`.
+  - **Onboarding UI**: Added a hint message on the OTP screen showing `Beta: enter code 123456` when `BETA_AUTH` is enabled.
+  - **App Environment**: Updated mobile `.env` with the production API Base URL, disabling mocks, and enabling Beta Auth.
+- Why:
+  - Allow zero-SMS-cost instant beta testing for testers by entering any phone number with the shared beta login code.
+- Open items / next:
+  - Commit changes, push to GitHub to trigger Render build, and test end-to-end mobile flow.
+
 ## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — Backend live on Render & Supabase online
 - What changed:
   - **Database Migration**: Applied the table schema from `database/schema.sql` to the live remote Supabase PostgreSQL database instance.

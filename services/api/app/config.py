@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_jwt_secret: str = ""
     auth_dev_bypass: bool = False
+    beta_auth: bool = False
+    beta_login_code: str = "123456"
     host: str = "0.0.0.0"
     port: int = 8000
     # Optional: enables hosting invoice PDFs for WhatsApp links (Supabase Storage).

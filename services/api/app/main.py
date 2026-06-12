@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import close_pool, init_pool
 from .errors import install_error_handlers
-from .routers import analytics, bills, business, customers, home, inventory, khata, payment_methods, staff
+from .routers import auth, analytics, bills, business, customers, home, inventory, khata, payment_methods, staff
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ app.add_middleware(
 )
 install_error_handlers(app)
 
+app.include_router(auth.router)
 app.include_router(business.router)
 app.include_router(payment_methods.router)
 app.include_router(home.router)

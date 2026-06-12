@@ -9,6 +9,8 @@ import { Colors, Radius } from '@/theme/tokens';
 import { Font, tnum } from '@/theme/typography';
 import { useAppStore, useBrand } from '@/state/store';
 
+const BETA_AUTH = (process.env.EXPO_PUBLIC_BETA_AUTH ?? 'false') === 'true';
+
 /** Step 2 — 6-box OTP with auto-advance and 30s resend timer. Verifies with Supabase. */
 export default function Otp() {
   const router = useRouter();
@@ -130,6 +132,14 @@ export default function Otp() {
           </Pressable>
         )}
       </View>
+
+      {BETA_AUTH && (
+        <View style={{ marginTop: 16, alignItems: 'center' }}>
+          <Text style={{ fontFamily: Font.semibold, fontSize: 13, color: Colors.textSecondary }}>
+            Beta: enter code 123456
+          </Text>
+        </View>
+      )}
     </ObFrame>
   );
 }

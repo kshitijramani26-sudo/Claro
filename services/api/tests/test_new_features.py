@@ -124,3 +124,53 @@ async def test_analytics_sections(biz):
     # §2 weekday histogram shape
     assert len(a.weekday_totals) == 7
     assert sum(a.weekday_totals) == 60000
+
+
+# Step 3 — Beta auth endpoint tests
+async def test_beta_auth_flow():
+    from httpx import ASGITransport, AsyncClient
+    from app.main import app
+    from app.config import get_settings
+    
+    settings = get_settings()
+    original_beta_auth = settings.beta_auth
+    original_code = settings.beta_login_code
+    
+    settings.beta_auth = True
+    settings.beta_login_code = "123456"
+    
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            # 1. Login
+            resp = await ac.post("/auth/login", json={"phone": "+919876543210"})
+            assert resp.status_code == 200
+            assert resp.json()["status"] == "otp_sent"
+            
+            # 2. Verify with invalid code
+            resp = await ac.post("/auth/verify", json={"phone": "+919876543210", "code": "654321"})
+            assert resp.status_code == 401
+            
+            # 3. Verify with valid code
+            resp = await ac.post("/auth/verify", json={"phone": "+919876543210", "code": "123456"})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert "access_token" in data
+            assert data["token_type"] == "bearer"
+            assert data["user"]["phone"] == "+919876543210"
+            
+            # 4. Rate limiting test
+            # Let's clean up rate limiting state
+            from app.routers.auth import verify_attempts_ip, verify_attempts_phone
+            verify_attempts_ip.clear()
+            verify_attempts_phone.clear()
+            
+            # Make 5 requests (which is the limit)
+            for _ in range(5):
+                await ac.post("/auth/verify", json={"phone": "+919876543211", "code": "123456"})
+            # The 6th request must trigger 429 Too Many Requests
+            resp = await ac.post("/auth/verify", json={"phone": "+919876543211", "code": "123456"})
+            assert resp.status_code == 429
+    finally:
+        settings.beta_auth = original_beta_auth
+        settings.beta_login_code = original_code
+
