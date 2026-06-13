@@ -19,6 +19,7 @@ Format:
   - **Tapping Timeline Invoice rows**: Added `billId` mapping to timeline entries in both mock and real API `getKhataTimeline` so that tapping search timeline items correctly opens the invoice summary overlay.
   - **WhatsApp Message**: Formatted and appended detailed eye prescription (Rx) parameters to the WhatsApp message text if the industry is `Optical`.
   - **PDF Status Badge**: Modified the Python backend PDF generator `pdfgen.py` to draw a colored status badge (`PAID`, `PARTIALLY PAID`, or `UNPAID`) next to the document header, matching the theme tokens.
+  - **Prescription Date 500 error**: Fixed a backend type error (`TypeError: fromisoformat: argument must be str`) in `confirm_bill` by safely handling both `datetime.date` objects and string inputs for `rx.date`.
 - Why:
   - Addressed client-side user experience bugs and database representation bugs to ensure correct billing and prescription recall for Optical stores.
 - Open items / next:
