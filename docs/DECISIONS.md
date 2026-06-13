@@ -10,6 +10,21 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-14] — Antigravity — Optical Industry Billing & Prescription Bug Fixes
+- What changed:
+  - **Advance Payment QR**: Fixed ScanPayOverlay QR code to show the received advance amount (e.g. ₹1000) rather than the total bill (e.g. ₹1800) during advance payment UPI method.
+  - **QR Block in InvoiceCard**: Updated the QR code block in `InvoiceCard.tsx` to display the `amountReceived` (e.g. ₹1000) instead of `totals.grand` when a partial payment is being made.
+  - **Customer Search Hits**: Added a helper `phoneMatch` to compare the last 10 digits of phone numbers, and name prefix matching to ensure the "Use last Rx" button auto-shows reliably in Create Bill.
+  - **Customer Activity page**: Replaced the old Rx card with a customer details header card (showing avatar, name, phone, outstanding, and a "See Power" button) and rendered the latest prescription parameters directly on the page.
+  - **Tapping Timeline Invoice rows**: Added `billId` mapping to timeline entries in both mock and real API `getKhataTimeline` so that tapping search timeline items correctly opens the invoice summary overlay.
+  - **WhatsApp Message**: Formatted and appended detailed eye prescription (Rx) parameters to the WhatsApp message text if the industry is `Optical`.
+  - **PDF Status Badge**: Modified the Python backend PDF generator `pdfgen.py` to draw a colored status badge (`PAID`, `PARTIALLY PAID`, or `UNPAID`) next to the document header, matching the theme tokens.
+- Why:
+  - Addressed client-side user experience bugs and database representation bugs to ensure correct billing and prescription recall for Optical stores.
+- Open items / next:
+  - Run physical-device validation on Expo Go.
+  - Deploy latest changes to the hosted branch.
+
 ## [2026-06-14] — Antigravity — Full features implementation (Advance Payments, Eye Prescriptions, Order Status)
 - What changed:
   - **Type & Compile Fixes**: Resolved TypeScript compile errors in `CreateBillOverlay.tsx`, `InvoiceCard.tsx`, and `CustomerDetailOverlay.tsx` by correcting non-existent `Colors.successBg` to `Colors.successTile`, and importing the `Tap` component from `@/components/atoms/Tap`.

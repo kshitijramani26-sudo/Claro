@@ -57,7 +57,7 @@ async def khata_detail(customer_id: UUID, biz: CurrentBusiness = Depends(get_cur
             """SELECT id, COALESCE(NULLIF(note, ''), CASE WHEN type='credit' THEN 'Credit' ELSE 'Payment' END) AS label,
                       CASE WHEN type = 'credit' THEN amount_paise ELSE 0 END AS debit_paise,
                       CASE WHEN type = 'payment' THEN amount_paise ELSE 0 END AS credit_paise,
-                      created_at AS at
+                      created_at AS at, bill_id
                FROM khata_entries WHERE business_id = $1 AND customer_id = $2
                ORDER BY created_at DESC, id DESC""",
             biz.id, customer_id,

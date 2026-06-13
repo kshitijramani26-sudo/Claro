@@ -288,6 +288,7 @@ class KhataEntryRead(BaseModel):
     debit_paise: int
     credit_paise: int
     at: datetime
+    bill_id: UUID | None = None
 
 
 class KhataDetailRead(BaseModel):

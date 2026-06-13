@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
-from ..schemas import ActivityRead, CustomerRead, PrescriptionRead
+from ..schemas import ActivityRead, CustomerRead, PrescriptionCreate, PrescriptionRead
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -83,3 +83,32 @@ async def get_latest_prescription(customer_id: UUID, biz: CurrentBusiness = Depe
     if row is None:
         return None
     return PrescriptionRead(**dict(row))
+
+
+@router.post("/{customer_id}/prescriptions", response_model=PrescriptionRead)
+async def create_prescription(customer_id: UUID, payload: PrescriptionCreate, biz: CurrentBusiness = Depends(get_current_business)) -> PrescriptionRead:
+    async with biz_txn(biz.id) as conn:
+        cust_id = await conn.fetchval(
+            "SELECT id FROM customers WHERE id = $1 AND business_id = $2", customer_id, biz.id
+        )
+        if cust_id is None:
+            from ..errors import NotFoundError
+            raise NotFoundError("Customer not found")
+        row = await conn.fetchrow(
+            """INSERT INTO prescriptions (business_id, customer_id, date,
+                                         r_dist_sph, r_dist_cyl, r_dist_axis, r_dist_vn,
+                                         r_near_sph, r_near_cyl, r_near_axis, r_near_vn,
+                                         l_dist_sph, l_dist_cyl, l_dist_axis, l_dist_vn,
+                                         l_near_sph, l_near_cyl, l_near_axis, l_near_vn,
+                                         add_r, add_l, pd, lens_types, remarks)
+               VALUES ($1,$2,COALESCE($3, CURRENT_DATE),$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+               RETURNING *""",
+            biz.id, customer_id, payload.date,
+            payload.r_dist_sph, payload.r_dist_cyl, payload.r_dist_axis, payload.r_dist_vn,
+            payload.r_near_sph, payload.r_near_cyl, payload.r_near_axis, payload.r_near_vn,
+            payload.l_dist_sph, payload.l_dist_cyl, payload.l_dist_axis, payload.l_dist_vn,
+            payload.l_near_sph, payload.l_near_cyl, payload.l_near_axis, payload.l_near_vn,
+            payload.add_r, payload.add_l, payload.pd, payload.lens_types, payload.remarks
+        )
+    return PrescriptionRead(**dict(row))
+

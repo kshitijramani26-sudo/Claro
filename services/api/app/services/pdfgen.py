@@ -56,6 +56,34 @@ def render_invoice_pdf(bill: BillRead, business: dict, upi_vpa: str | None) -> b
         d_str = bill.delivery_date.strftime("%d %b %Y") if hasattr(bill.delivery_date, "strftime") else str(bill.delivery_date)
         c.drawRightString(w - 14 * mm, h - 29 * mm, f"Delivery: {d_str}")
 
+    # Status badge
+    is_partial = bill.payment_mode == "CREDIT" and bill.amount_received_paise > 0
+    is_unpaid = bill.payment_mode == "CREDIT" and bill.amount_received_paise == 0
+
+    if is_partial:
+        status_text = "PARTIALLY PAID"
+        bg_color = colors.HexColor("#FEF3E2")
+        text_color = colors.HexColor("#C2700A")
+    elif is_unpaid:
+        status_text = "UNPAID"
+        bg_color = colors.HexColor("#FDECF2")
+        text_color = colors.HexColor("#E5484D")
+    else:
+        status_text = "PAID"
+        bg_color = colors.HexColor("#E8F7F0")
+        text_color = colors.HexColor("#16A34A")
+
+    badge_w = c.stringWidth(status_text, "Helvetica-Bold", 7) + 6
+    badge_h = 12
+    badge_x = w - 14 * mm - badge_w
+    badge_y = h - 35 * mm
+    c.setFillColor(bg_color)
+    c.roundRect(badge_x, badge_y, badge_w, badge_h, 2, stroke=0, fill=1)
+    c.setFillColor(text_color)
+    c.setFont("Helvetica-Bold", 7)
+    c.drawCentredString(badge_x + badge_w / 2.0, badge_y + 3, status_text)
+    c.setFillColor(colors.black)
+
     if bill.customer_name:
         y -= 2 * mm
         c.setFont("Helvetica", 9)
