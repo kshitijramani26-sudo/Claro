@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { OverlayShell } from './OverlayShell';
 import { InvoiceCard } from './InvoiceCard';
 import { ScanPayOverlay } from './ScanPayOverlay';
 import { OutlineButton } from '@/components/atoms/Button';
+import { Tap } from '@/components/atoms/Tap';
+import { Sym } from '@/components/atoms/Icon';
 import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { api } from '@/lib/api';
@@ -11,6 +13,8 @@ import { useApi } from '@/lib/useApi';
 import { buildUpiUri } from '@/lib/upi';
 import { sharePdfFile, shareWhatsAppInvoice } from '@/lib/invoiceShare';
 import { usePageTheme } from '@/theme/pageThemes';
+import { Colors } from '@/theme/tokens';
+import { Font } from '@/theme/typography';
 import { useAppStore } from '@/state/store';
 import type { BillItem } from '@/state/store';
 
@@ -21,7 +25,35 @@ export function InvoiceSummaryOverlay() {
   const business = useAppStore((s) => s.business);
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const flashToast = useAppStore((s) => s.flashToast);
+  const refresh = useAppStore((s) => s.refresh);
   const [scanOpen, setScanOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = (bId: string, invoiceNo: string) => {
+    Alert.alert(
+      'Delete this invoice?',
+      `${invoiceNo} will be removed and its stock, payment and credit effects reversed. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await api.deleteBill(bId);
+              refresh();
+              flashToast('Invoice deleted');
+              closeOverlay();
+            } catch (e) {
+              flashToast((e as Error).message);
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const { data: bill, error } = useApi(() => api.getBill(billId ?? ''), [billId]);
   const { data: methods } = useApi(() => api.getPaymentMethods());
@@ -101,6 +133,20 @@ export function InvoiceSummaryOverlay() {
                   }}
                 />
               </View>
+              <Tap
+                disabled={deleting}
+                onPress={() => confirmDelete(bill.id, bill.invoiceNo)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  marginTop: 12, height: 46, borderRadius: 11, borderWidth: 1.5,
+                  borderColor: Colors.dangerTile, backgroundColor: Colors.dangerTile,
+                }}
+              >
+                <Sym name="delete" size={18} color={Colors.danger} />
+                <Text style={{ fontFamily: Font.bold, fontSize: 14, color: Colors.danger }}>
+                  {deleting ? 'Deleting…' : 'Delete invoice'}
+                </Text>
+              </Tap>
             </>
           )}
         </ScrollView>

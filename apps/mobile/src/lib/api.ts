@@ -226,6 +226,9 @@ const realApi = {
       },
     });
   },
+  async deleteInventory(itemId: string): Promise<void> {
+    await request(`/inventory/${itemId}`, { method: 'DELETE' });
+  },
   async getBillCatalog(): Promise<CatalogItem[]> {
     const rows = await this.getInventoryRaw();
     return rows.map((i) => ({
@@ -248,6 +251,17 @@ const realApi = {
       method: 'POST',
       json: { name: input.name, role: input.role, phone: input.phone, salary_paise: Math.round(input.salaryRupees * 100) },
     });
+  },
+  async patchStaff(staffId: string, patch: { name?: string; role?: string; phone?: string; salaryRupees?: number }): Promise<void> {
+    const json: Record<string, unknown> = {};
+    if (patch.name !== undefined) json.name = patch.name;
+    if (patch.role !== undefined) json.role = patch.role;
+    if (patch.phone !== undefined) json.phone = patch.phone;
+    if (patch.salaryRupees !== undefined) json.salary_paise = Math.round(patch.salaryRupees * 100);
+    await request(`/staff/${staffId}`, { method: 'PATCH', json });
+  },
+  async deleteStaff(staffId: string): Promise<void> {
+    await request(`/staff/${staffId}`, { method: 'DELETE' });
   },
   async markAttendance(staffId: string, present: boolean): Promise<void> {
     await request(`/staff/${staffId}/attendance`, { method: 'POST', json: { status: present ? 'present' : 'absent' } });
@@ -315,6 +329,9 @@ const realApi = {
   },
   async getBill(billId: string): Promise<BillResult> {
     return mapBill(await request<WireBill>(`/bills/${billId.replace(/^bill-/, '')}`));
+  },
+  async deleteBill(billId: string): Promise<void> {
+    await request(`/bills/${billId.replace(/^bill-/, '')}`, { method: 'DELETE' });
   },
   async getAnalytics(period: PeriodKey): Promise<AnalyticsPeriod> {
     const a = await request<{
@@ -591,6 +608,9 @@ const mockApi = {
       low: input.qty <= input.threshold,
     });
   },
+  async deleteInventory(itemId: string): Promise<void> {
+    mInventory = mInventory.filter((i) => i.id !== itemId);
+  },
   async getBillCatalog(): Promise<CatalogItem[]> {
     return mInventory.map((i) => ({
       id: i.id,
@@ -615,6 +635,17 @@ const mockApi = {
       initials: initials(input.name),
     };
     mStaff.push(newMember);
+  },
+  async patchStaff(staffId: string, patch: { name?: string; role?: string; phone?: string; salaryRupees?: number }): Promise<void> {
+    const s = mStaff.find((x) => x.id === staffId);
+    if (!s) return;
+    if (patch.name !== undefined) { s.name = patch.name; s.initials = initials(patch.name); }
+    if (patch.role !== undefined) s.role = patch.role;
+    if (patch.phone !== undefined) s.phone = patch.phone;
+    if (patch.salaryRupees !== undefined) s.salary = patch.salaryRupees;
+  },
+  async deleteStaff(staffId: string): Promise<void> {
+    mStaff = mStaff.filter((x) => x.id !== staffId);
   },
   async markAttendance(staffId: string, present: boolean): Promise<void> {
     const s = mStaff.find((x) => x.id === staffId);
@@ -814,6 +845,10 @@ const mockApi = {
       customerName: act.sub.split('·').pop()?.trim() ?? 'Walk-in', date: 'Today',
       items: [{ name: act.title, qty: 1, price: act.amount, lineTotal: act.amount }],
     };
+  },
+  async deleteBill(billId: string): Promise<void> {
+    delete mBills[billId];
+    mActivities = mActivities.filter((a) => a.id !== billId && a.billId !== billId);
   },
   async getBillShareLink(_billId: string): Promise<string | null> {
     return null; // no hosted storage in mock mode

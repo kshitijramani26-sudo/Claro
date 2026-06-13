@@ -1,4 +1,4 @@
-import { ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from '@/components/atoms/Card';
 import { Tap } from '@/components/atoms/Tap';
@@ -21,10 +21,31 @@ export default function Stock() {
   const insets = useSafeAreaInsets();
   const emptyMode = useAppStore((s) => s.emptyMode);
   const openOverlay = useAppStore((s) => s.openOverlay);
+  const refresh = useAppStore((s) => s.refresh);
+  const flashToast = useAppStore((s) => s.flashToast);
 
   const { data: stats } = useApi(() => api.getInventoryStats());
   const { data, loading, error, reload } = useApi(() => api.getInventory());
   const items = emptyMode ? [] : (data ?? []);
+
+  const confirmDelete = (id: string, name: string) => {
+    Alert.alert('Delete this item?', `${name} will be removed from your inventory.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deleteInventory(id);
+            refresh();
+            flashToast('Item deleted');
+          } catch (e) {
+            flashToast((e as Error).message);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
@@ -71,7 +92,7 @@ export default function Stock() {
             ) : (
               <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
                 {items.map((it, i) => (
-                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} />
+                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} onDelete={() => confirmDelete(it.id, it.name)} />
                 ))}
               </Card>
             )}

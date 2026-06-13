@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import { OverlayShell } from './OverlayShell';
+import { BottomSheet } from './BottomSheet';
 import { Card } from '@/components/atoms/Card';
 import { Avatar } from '@/components/atoms/Avatar';
 import { Badge } from '@/components/atoms/Badge';
 import { Money } from '@/components/atoms/Money';
+import { Sym } from '@/components/atoms/Icon';
+import { Tap } from '@/components/atoms/Tap';
 import { SegmentedControl } from '@/components/atoms/SegmentedControl';
 import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { api } from '@/lib/api';
+import type { StaffMember } from '@/data/types';
 import { useApi } from '@/lib/useApi';
 import { formatINR } from '@/lib/format';
 import { usePageTheme } from '@/theme/pageThemes';
@@ -30,6 +34,7 @@ export function StaffDetailOverlay() {
   const [advanceMode, setAdvanceMode] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [attDays, setAttDays] = useState<14 | 31>(14);
+  const [editing, setEditing] = useState(false);
 
   const { data: members } = useApi(() => api.getStaff());
   const { data: detail, reload } = useApi(() => api.getStaffDetail(selStaff, attDays), [selStaff, attDays]);
@@ -79,6 +84,7 @@ export function StaffDetailOverlay() {
   };
 
   return (
+    <>
     <OverlayShell
       title={member.name}
       closeIcon="arrow_back"
@@ -146,7 +152,7 @@ export function StaffDetailOverlay() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: Font.extrabold, fontSize: 18, color: Colors.textPrimary }}>{member.name}</Text>
             <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary, marginTop: 2 }}>
-              {member.role} · ₹{member.salary.toLocaleString('en-IN')}/mo
+              {member.role || 'No role set'}{member.phone ? ` · ${member.phone}` : ''}
             </Text>
             {member.advance > 0 ? (
               <Text style={[{ fontFamily: Font.semibold, fontSize: 12, color: Colors.danger, marginTop: 3 }, tnum]}>
@@ -154,6 +160,16 @@ export function StaffDetailOverlay() {
               </Text>
             ) : null}
           </View>
+          <Tap
+            onPress={() => setEditing(true)}
+            style={{
+              flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, height: 34,
+              borderRadius: Radius.pill, backgroundColor: theme.tile,
+            }}
+          >
+            <Sym name="edit_note" size={17} color={theme.accent} />
+            <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: theme.accent }}>Edit</Text>
+          </Tap>
         </Card>
 
         {/* Salary — remaining to pay this month */}
@@ -251,6 +267,64 @@ export function StaffDetailOverlay() {
         ) : null}
       </ScrollView>
     </OverlayShell>
+    {editing ? (
+      <StaffEditSheet
+        member={member}
+        accent={theme.accent}
+        onClose={() => setEditing(false)}
+        onSaved={() => { setEditing(false); refresh(); reload(); }}
+        onDeleted={() => { setEditing(false); refresh(); closeOverlay(); }}
+      />
+    ) : null}
+    </>
+  );
+}
+
+function StaffEditSheet({ member, accent, onClose, onSaved, onDeleted }: {
+  member: StaffMember; accent: string; onClose: () => void; onSaved: () => void; onDeleted: () => void;
+}) {
+  const flashToast = useAppStore((s) => s.flashToast);
+  const [name, setName] = useState(member.name);
+  const [role, setRole] = useState(member.role);
+  const [phone, setPhone] = useState(member.phone);
+  const [salary, setSalary] = useState(String(member.salary));
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) { flashToast('Name is required'); return; }
+    setSaving(true);
+    try {
+      await api.patchStaff(member.id, { name: name.trim(), role: role.trim(), phone: phone.trim(), salaryRupees: parseFloat(salary) || 0 });
+      onSaved();
+    } catch (e) { flashToast((e as Error).message); setSaving(false); }
+  };
+
+  const remove = () => {
+    Alert.alert('Remove staff member?', `${member.name} will be removed from your records. This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try { await api.deleteStaff(member.id); flashToast('Staff removed'); onDeleted(); }
+        catch (e) { flashToast((e as Error).message); }
+      } },
+    ]);
+  };
+
+  const fieldStyle = { height: 52, borderRadius: Radius.tile, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.inputBg, paddingHorizontal: 14, fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary } as const;
+
+  return (
+    <BottomSheet title="Edit staff details" onClose={onClose}>
+      <View style={{ gap: 12 }}>
+        <TextInput value={name} onChangeText={setName} placeholder="Full name" placeholderTextColor={Colors.textMuted} style={fieldStyle} />
+        <TextInput value={role} onChangeText={setRole} placeholder="Role (e.g. Cashier)" placeholderTextColor={Colors.textMuted} style={fieldStyle} />
+        <TextInput value={phone} onChangeText={setPhone} placeholder="Phone number" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" style={fieldStyle} />
+        <TextInput value={salary} onChangeText={setSalary} placeholder="Monthly salary (₹)" placeholderTextColor={Colors.textMuted} keyboardType="number-pad" style={fieldStyle} />
+        <PrimaryButton label={saving ? 'Saving…' : 'Save changes'} disabled={saving} onPress={save} style={{ marginTop: 4 }} />
+        <Tap onPress={remove} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, height: 46 }}>
+          <Sym name="delete" size={18} color={Colors.danger} />
+          <Text style={{ fontFamily: Font.bold, fontSize: 14, color: Colors.danger }}>Remove staff member</Text>
+        </Tap>
+      </View>
+    </BottomSheet>
   );
 }
 

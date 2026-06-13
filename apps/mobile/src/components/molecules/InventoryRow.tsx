@@ -2,12 +2,14 @@ import { Text, View } from 'react-native';
 import { IconTile } from '@/components/atoms/IconTile';
 import { Money } from '@/components/atoms/Money';
 import { Badge } from '@/components/atoms/Badge';
+import { Sym } from '@/components/atoms/Icon';
+import { Tap } from '@/components/atoms/Tap';
 import type { InventoryItem } from '@/data/types';
 import { Colors } from '@/theme/tokens';
 import { Font, tnum } from '@/theme/typography';
 
 /** Inventory list row — neutral tile, qty turns amber + "Low stock" badge when low. */
-export function InventoryRow({ item, last }: { item: InventoryItem; last?: boolean }) {
+export function InventoryRow({ item, last, onDelete }: { item: InventoryItem; last?: boolean; onDelete?: () => void }) {
   return (
     <View
       style={{
@@ -37,6 +39,11 @@ export function InventoryRow({ item, last }: { item: InventoryItem; last?: boole
         </View>
       </View>
       <Money value={item.price} style={[{ fontFamily: Font.extrabold, fontSize: 16, color: Colors.textPrimary }, tnum]} />
+      {onDelete ? (
+        <Tap onPress={onDelete} hitSlop={8} style={{ paddingLeft: 6 }}>
+          <Sym name="delete" size={20} color={Colors.textMuted} />
+        </Tap>
+      ) : null}
     </View>
   );
 }
