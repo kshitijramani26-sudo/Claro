@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Response
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
 from ..errors import NotFoundError
-from ..schemas import BillCreate, BillRead, UpiRead
+from ..schemas import BillCreate, BillRead, UpiRead, BillStatusUpdate
 from ..services import bills as billsvc
 from ..services.pdfgen import render_invoice_pdf
 from ..services.storage import upload_invoice_pdf
@@ -30,6 +30,18 @@ async def delete_bill(bill_id: UUID, biz: CurrentBusiness = Depends(get_current_
     """Void a bill created by mistake (reverses stock + revenue, removes the invoice)."""
     await billsvc.void_bill(biz, bill_id)
     return {"ok": True}
+
+
+@router.patch("/{bill_id}/status", response_model=BillRead)
+async def update_bill_status(bill_id: UUID, payload: BillStatusUpdate, biz: CurrentBusiness = Depends(get_current_business)) -> BillRead:
+    async with biz_txn(biz.id) as conn:
+        row = await conn.fetchrow(
+            "UPDATE bills SET order_status = $1 WHERE id = $2 AND business_id = $3 RETURNING id",
+            payload.order_status, bill_id, biz.id,
+        )
+        if row is None:
+            raise NotFoundError("Bill not found")
+        return await billsvc._read_bill(conn, bill_id)
 
 
 async def _bill_vpa(biz: CurrentBusiness, bill: BillRead) -> tuple[str, str]:

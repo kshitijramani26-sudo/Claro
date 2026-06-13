@@ -52,6 +52,9 @@ def render_invoice_pdf(bill: BillRead, business: dict, upi_vpa: str | None) -> b
     c.setFont("Helvetica", 9)
     c.drawRightString(w - 14 * mm, h - 21 * mm, bill.invoice_no)
     c.drawRightString(w - 14 * mm, h - 25 * mm, bill.created_at.strftime("%d %b %Y"))
+    if bill.delivery_date:
+        d_str = bill.delivery_date.strftime("%d %b %Y") if hasattr(bill.delivery_date, "strftime") else str(bill.delivery_date)
+        c.drawRightString(w - 14 * mm, h - 29 * mm, f"Delivery: {d_str}")
 
     if bill.customer_name:
         y -= 2 * mm
@@ -116,6 +119,9 @@ def render_invoice_pdf(bill: BillRead, business: dict, upi_vpa: str | None) -> b
         elif bill.tax_kind == "inter":
             total_row("IGST", bill.igst_paise)
     total_row("TOTAL", bill.grand_total_paise, bold=True)
+    if bill.balance_due_paise > 0:
+        total_row("Paid (Advance)", bill.amount_received_paise)
+        total_row("Balance Due", bill.balance_due_paise, bold=True)
 
     # Tax summary by rate (GST invoices)
     if is_gst and bill.tax_total_paise > 0:
@@ -132,6 +138,48 @@ def render_invoice_pdf(bill: BillRead, business: dict, upi_vpa: str | None) -> b
         c.setFont("Helvetica", 7)
         for rate, (taxable, tax) in sorted(by_rate.items()):
             c.drawString(x0, y, f"GST {rate / 100:g}%  on {_inr(taxable)}  =  {_inr(tax)}")
+            y -= 3.6 * mm
+
+    # Eye Prescription (Rx) Table
+    if bill.prescription:
+        rx = bill.prescription
+        y -= 4 * mm
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(x0, y, "EYE PRESCRIPTION (Rx)")
+        y -= 4 * mm
+        c.setFont("Helvetica-Bold", 7)
+        c.drawString(x0 + 24 * mm, y, "SPH")
+        c.drawString(x0 + 38 * mm, y, "CYL")
+        c.drawString(x0 + 52 * mm, y, "AXIS")
+        c.drawString(x0 + 66 * mm, y, "V.N")
+        y -= 3.5 * mm
+        c.setFont("Helvetica", 7)
+        
+        def draw_rx_row(label, sph, cyl, axis, vn):
+            nonlocal y
+            c.drawString(x0, y, label)
+            c.drawString(x0 + 24 * mm, y, sph or "-")
+            c.drawString(x0 + 38 * mm, y, cyl or "-")
+            c.drawString(x0 + 52 * mm, y, str(axis) if axis is not None else "-")
+            c.drawString(x0 + 66 * mm, y, vn or "-")
+            y -= 3.5 * mm
+
+        draw_rx_row("R (Dist)", rx.r_dist_sph, rx.r_dist_cyl, rx.r_dist_axis, rx.r_dist_vn)
+        draw_rx_row("R (Near)", rx.r_near_sph, rx.r_near_cyl, rx.r_near_axis, rx.r_near_vn)
+        draw_rx_row("L (Dist)", rx.l_dist_sph, rx.l_dist_cyl, rx.l_dist_axis, rx.l_dist_vn)
+        draw_rx_row("L (Near)", rx.l_near_sph, rx.l_near_cyl, rx.l_near_axis, rx.l_near_vn)
+        
+        y -= 1 * mm
+        c.drawString(x0, y, f"Add R: {rx.add_r or '-'}")
+        c.drawString(x0 + 25 * mm, y, f"Add L: {rx.add_l or '-'}")
+        c.drawString(x0 + 50 * mm, y, f"PD: {rx.pd or '-'}")
+        y -= 4 * mm
+        
+        if rx.lens_types:
+            c.drawString(x0, y, f"Lens: {', '.join(rx.lens_types)}")
+            y -= 3.6 * mm
+        if rx.remarks:
+            c.drawString(x0, y, f"Remarks: {rx.remarks}")
             y -= 3.6 * mm
 
     if upi_vpa:

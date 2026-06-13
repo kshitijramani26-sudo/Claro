@@ -14,6 +14,7 @@ from app.schemas import (
     SalaryPayCreate,
     SettleCreate,
     StaffCreate,
+    PrescriptionCreate,
 )
 from app.services.bills import confirm_bill
 
@@ -231,4 +232,89 @@ async def test_beta_auth_flow():
     finally:
         settings.beta_auth = original_beta_auth
         settings.beta_login_code = original_code
+
+
+# Part B/C/D — advance payments, prescriptions, order details
+async def test_partial_payment_credit_bill(biz):
+    from .conftest import add_customer
+    cust = await add_customer(biz, "PartPay")
+    item = await add_item(biz, "Glass Frame", 50000, 5) # 500.00
+    
+    # CREDIT bill of 500.00 with 150.00 advance received in UPI
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item, name="-", qty=1, unit_price_paise=50000, item_kind="frame")],
+        payment_mode="CREDIT", customer_id=cust,
+        amount_received_paise=15000, received_mode="UPI",
+        order_status="pending"
+    ))
+    
+    assert bill.amount_received_paise == 15000
+    assert bill.balance_due_paise == 35000
+    assert bill.order_status == "pending"
+    assert bill.items[0].item_kind == "frame"
+    
+    # Verify Payment row created for the advance
+    pay_amt = await _fetch(biz, "SELECT amount_paise FROM payments WHERE bill_id = $1 AND mode = 'UPI'", bill.id)
+    assert pay_amt == 15000
+    
+    # Verify Khata entry created for the balance
+    khata_amt = await _fetch(biz, "SELECT amount_paise FROM khata_entries WHERE bill_id = $1 AND type = 'credit'", bill.id)
+    assert khata_amt == 35000
+    
+    # Verify customer outstanding balance increased by the balance due
+    bal = await _fetch(biz, "SELECT outstanding_balance_paise FROM customers WHERE id = $1", cust)
+    assert bal == 35000
+
+
+async def test_prescription_and_recall_latest(biz):
+    from .conftest import add_customer
+    from app.routers.customers import get_prescriptions, get_latest_prescription
+    cust = await add_customer(biz, "RxUser")
+    
+    # Create bill with prescription
+    rx_payload = PrescriptionCreate(
+        r_dist_sph="+0.25", r_dist_cyl="-1.00", r_dist_axis=90, r_dist_vn="6/6",
+        remarks="Test Rx", lens_types=["CR-39", "Anti-reflection"]
+    )
+    
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(name="Lens", qty=2, unit_price_paise=10000, item_kind="lens")],
+        payment_mode="CASH", customer_name="RxUser", customer_id=cust,
+        prescription=rx_payload
+    ))
+    
+    # Retrieve prescriptions
+    rx_list = await get_prescriptions(cust, biz=biz)
+    assert len(rx_list) == 1
+    assert rx_list[0].r_dist_sph == "+0.25"
+    assert rx_list[0].remarks == "Test Rx"
+    assert "CR-39" in rx_list[0].lens_types
+    assert rx_list[0].bill_id == bill.id
+    
+    latest_rx = await get_latest_prescription(cust, biz=biz)
+    assert latest_rx is not None
+    assert latest_rx.r_dist_sph == "+0.25"
+    
+    # Verify voiding bill deletes the prescription
+    from app.services.bills import void_bill
+    await void_bill(biz, bill.id)
+    assert await _fetch(biz, "SELECT count(*) FROM prescriptions WHERE id = $1", latest_rx.id) == 0
+
+
+async def test_update_bill_status(biz):
+    from app.routers.bills import update_bill_status
+    from app.schemas import BillStatusUpdate
+    item = await add_item(biz, "Lens", 15000, 10)
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item, name="-", qty=1, unit_price_paise=15000)],
+        payment_mode="CASH", order_status="pending"
+    ))
+    assert bill.order_status == "pending"
+    
+    updated = await update_bill_status(bill.id, BillStatusUpdate(order_status="ready"), biz=biz)
+    assert updated.order_status == "ready"
+    
+    updated2 = await update_bill_status(bill.id, BillStatusUpdate(order_status="delivered"), biz=biz)
+    assert updated2.order_status == "delivered"
+
 

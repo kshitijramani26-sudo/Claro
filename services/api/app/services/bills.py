@@ -24,24 +24,34 @@ _BILL_COLS = """
     b.id, b.invoice_no, b.gst_mode, b.tax_kind, b.place_of_supply_state,
     b.subtotal_paise, b.discount_paise, b.taxable_paise, b.cgst_paise, b.sgst_paise,
     b.igst_paise, b.tax_total_paise, b.grand_total_paise, b.payment_mode,
-    b.payment_method_id, b.customer_id, b.staff_id, b.note, b.created_at,
-    COALESCE(c.name, '') AS customer_name
+    b.payment_method_id, b.customer_id, b.staff_id, b.note,
+    b.amount_received_paise, b.balance_due_paise, b.created_at,
+    COALESCE(c.name, '') AS customer_name, COALESCE(c.phone, '') AS customer_phone
 """
 
 
 async def _read_bill(conn: asyncpg.Connection, bill_id: UUID) -> BillRead:
     bill = await conn.fetchrow(
-        f"SELECT {_BILL_COLS} FROM bills b LEFT JOIN customers c ON c.id = b.customer_id WHERE b.id = $1",
+        f"SELECT {_BILL_COLS}, b.order_status, b.delivery_date FROM bills b LEFT JOIN customers c ON c.id = b.customer_id WHERE b.id = $1",
         bill_id,
     )
     if bill is None:
         raise NotFoundError("Bill not found")
     items = await conn.fetch(
-        """SELECT name, hsn_code, qty, unit_price_paise, tax_rate_bps, taxable_paise, tax_paise, line_total_paise
+        """SELECT name, hsn_code, qty, unit_price_paise, tax_rate_bps, taxable_paise, tax_paise, line_total_paise, item_kind
            FROM bill_items WHERE bill_id = $1 ORDER BY id""",
         bill_id,
     )
-    return BillRead(**dict(bill), items=[BillItemRead(**dict(i)) for i in items])
+    
+    rx_row = await conn.fetchrow(
+        "SELECT * FROM prescriptions WHERE bill_id = $1", bill_id
+    )
+    prescription = None
+    if rx_row:
+        from ..schemas import PrescriptionRead
+        prescription = PrescriptionRead(**dict(rx_row))
+
+    return BillRead(**dict(bill), items=[BillItemRead(**dict(i)) for i in items], prescription=prescription)
 
 
 async def get_bill(biz: CurrentBusiness, bill_id: UUID) -> BillRead:
@@ -55,7 +65,7 @@ async def void_bill(biz: CurrentBusiness, bill_id: UUID) -> None:
     revenue/stock/staff ledger rows. bill_items cascade with the bill."""
     async with biz_txn(biz.id) as conn:
         bill = await conn.fetchrow(
-            "SELECT payment_mode, customer_id, grand_total_paise FROM bills WHERE id = $1 AND business_id = $2 FOR UPDATE",
+            "SELECT payment_mode, customer_id, grand_total_paise, balance_due_paise FROM bills WHERE id = $1 AND business_id = $2 FOR UPDATE",
             bill_id, biz.id,
         )
         if bill is None:
@@ -71,14 +81,15 @@ async def void_bill(biz: CurrentBusiness, bill_id: UUID) -> None:
                 line["inventory_item_id"], biz.id, line["qty"],
             )
         # Undo the customer's outstanding balance (credit bills); clamp at 0.
-        if bill["payment_mode"] == "CREDIT" and bill["customer_id"] is not None:
+        # Only the balance_due hit the customer's balance (advance is a payment row).
+        if bill["payment_mode"] == "CREDIT" and bill["customer_id"] is not None and bill["balance_due_paise"] > 0:
             await conn.execute(
                 """UPDATE customers SET outstanding_balance_paise = GREATEST(0, outstanding_balance_paise - $3)
                    WHERE id = $1 AND business_id = $2""",
-                bill["customer_id"], biz.id, bill["grand_total_paise"],
+                bill["customer_id"], biz.id, bill["balance_due_paise"],
             )
         # Remove child ledger rows that FK the bill without ON DELETE CASCADE.
-        for table in ("stock_ledger", "khata_entries", "payments", "staff_ledger"):
+        for table in ("stock_ledger", "khata_entries", "payments", "staff_ledger", "prescriptions"):
             await conn.execute(f"DELETE FROM {table} WHERE bill_id = $1 AND business_id = $2", bill_id, biz.id)
         await conn.execute("DELETE FROM bills WHERE id = $1 AND business_id = $2", bill_id, biz.id)
 
@@ -217,6 +228,24 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
             if ok is None:
                 raise CrossBusinessReferenceError("payment_method", payload.payment_method_id)
 
+        # Advance / part payment split: CASH/UPI fully settled now; CREDIT may carry
+        # an advance (received now, via received_mode) + a balance (the customer's).
+        grand = totals.grand_total_paise
+        if payload.payment_mode == "CREDIT":
+            received = max(0, min(payload.amount_received_paise, grand))
+            balance = grand - received
+            received_mode = payload.received_mode or "CASH"
+        else:
+            received, balance, received_mode = grand, 0, payload.payment_mode
+
+        from datetime import date
+        delivery_dt = None
+        if payload.delivery_date:
+            try:
+                delivery_dt = date.fromisoformat(payload.delivery_date)
+            except ValueError:
+                pass
+
         # ── ENTRY 0: bill header + lines ──
         seq = await conn.fetchrow(
             """UPDATE businesses SET next_invoice_seq = next_invoice_seq + 1
@@ -229,27 +258,54 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
             """INSERT INTO bills (business_id, customer_id, staff_id, gst_mode, place_of_supply_state,
                                   tax_kind, subtotal_paise, discount_paise, taxable_paise, cgst_paise,
                                   sgst_paise, igst_paise, tax_total_paise, grand_total_paise,
-                                  payment_mode, payment_method_id, invoice_no, note, request_id)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+                                  payment_mode, payment_method_id, invoice_no, note, request_id,
+                                  amount_received_paise, balance_due_paise, order_status, delivery_date)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
                RETURNING id""",
             biz.id, customer_id, payload.staff_id, totals.gst_mode,
             place if totals.gst_mode == "gst" else "",
             totals.tax_kind, totals.subtotal_paise, totals.discount_paise, totals.taxable_paise,
             totals.cgst_paise, totals.sgst_paise, totals.igst_paise, totals.tax_total_paise,
             totals.grand_total_paise, payload.payment_mode, payload.payment_method_id,
-            invoice_no, payload.note, payload.request_id,
+            invoice_no, payload.note, payload.request_id, received, balance,
+            payload.order_status, delivery_dt,
         )
         await conn.executemany(
             """INSERT INTO bill_items (bill_id, business_id, inventory_item_id, name, hsn_code, qty,
-                                       unit_price_paise, tax_rate_bps, taxable_paise, tax_paise, line_total_paise)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)""",
+                                       unit_price_paise, tax_rate_bps, taxable_paise, tax_paise, line_total_paise, item_kind)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)""",
             [
                 (bill_id, biz.id, line.inventory_item_id, line.name, line.hsn_code, line.qty,
                  line.unit_price_paise, line.tax_rate_bps, line.taxable_paise, line.tax_paise,
-                 line.line_total_paise)
-                for line in totals.lines
+                 line.line_total_paise, payload_item.item_kind)
+                for payload_item, line in zip(payload.items, totals.lines)
             ],
         )
+
+        # ── ENTRY 0.5: prescription ──
+        if payload.prescription is not None:
+            rx = payload.prescription
+            rx_date = None
+            if rx.date:
+                try:
+                    rx_date = date.fromisoformat(rx.date)
+                except ValueError:
+                    pass
+            await conn.execute(
+                """INSERT INTO prescriptions (business_id, customer_id, bill_id, date,
+                                             r_dist_sph, r_dist_cyl, r_dist_axis, r_dist_vn,
+                                             r_near_sph, r_near_cyl, r_near_axis, r_near_vn,
+                                             l_dist_sph, l_dist_cyl, l_dist_axis, l_dist_vn,
+                                             l_near_sph, l_near_cyl, l_near_axis, l_near_vn,
+                                             add_r, add_l, pd, lens_types, remarks)
+                   VALUES ($1,$2,$3,COALESCE($4, CURRENT_DATE),$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)""",
+                biz.id, customer_id, bill_id, rx_date,
+                rx.r_dist_sph, rx.r_dist_cyl, rx.r_dist_axis, rx.r_dist_vn,
+                rx.r_near_sph, rx.r_near_cyl, rx.r_near_axis, rx.r_near_vn,
+                rx.l_dist_sph, rx.l_dist_cyl, rx.l_dist_axis, rx.l_dist_vn,
+                rx.l_near_sph, rx.l_near_cyl, rx.l_near_axis, rx.l_near_vn,
+                rx.add_r, rx.add_l, rx.pd, rx.lens_types, rx.remarks
+            )
 
         # ── ENTRY 1: guarded stock reduction (race-safe; never below 0) ──
         for line in totals.lines:
@@ -272,22 +328,31 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
                 biz.id, line.inventory_item_id, bill_id, -line.qty,
             )
 
-        # ── ENTRY 2: revenue — khata credit XOR payment, never both/neither ──
+        # ── ENTRY 2: revenue. CASH/UPI → one payment. CREDIT → the advance (if any)
+        # is a payment row, the balance (if any) is a khata credit + customer balance.
+        # The customer balance == Σ khata credits, so the §5 audit still holds.
         if payload.payment_mode == "CREDIT":
-            await conn.execute(
-                """INSERT INTO khata_entries (business_id, customer_id, bill_id, type, amount_paise, note)
-                   VALUES ($1, $2, $3, 'credit', $4, $5)""",
-                biz.id, customer_id, bill_id, totals.grand_total_paise, payload.note or invoice_no,
-            )
-            await conn.execute(
-                "UPDATE customers SET outstanding_balance_paise = outstanding_balance_paise + $3 WHERE id = $1 AND business_id = $2",
-                customer_id, biz.id, totals.grand_total_paise,
-            )
+            if received > 0:
+                await conn.execute(
+                    """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise)
+                       VALUES ($1, $2, $3, $4, $5)""",
+                    biz.id, bill_id, customer_id, received_mode, received,
+                )
+            if balance > 0:
+                await conn.execute(
+                    """INSERT INTO khata_entries (business_id, customer_id, bill_id, type, amount_paise, note)
+                       VALUES ($1, $2, $3, 'credit', $4, $5)""",
+                    biz.id, customer_id, bill_id, balance, payload.note or invoice_no,
+                )
+                await conn.execute(
+                    "UPDATE customers SET outstanding_balance_paise = outstanding_balance_paise + $3 WHERE id = $1 AND business_id = $2",
+                    customer_id, biz.id, balance,
+                )
         else:
             await conn.execute(
                 """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise)
                    VALUES ($1, $2, $3, $4, $5)""",
-                biz.id, bill_id, customer_id, payload.payment_mode, totals.grand_total_paise,
+                biz.id, bill_id, customer_id, payload.payment_mode, grand,
             )
 
         # ── ENTRY 3: staff attribution ──

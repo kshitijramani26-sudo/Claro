@@ -19,7 +19,9 @@ async def main() -> None:
     await admin.close()
 
     conn = await asyncpg.connect(ADMIN + "/claro")
-    await conn.execute((ROOT / "database" / "migrations" / "001_init.sql").read_text(encoding="utf-8"))
+    migrations_dir = ROOT / "database" / "migrations"
+    for migration in sorted(migrations_dir.glob("*.sql")):
+        await conn.execute(migration.read_text(encoding="utf-8"))
     await conn.execute((ROOT / "database" / "seed.sql").read_text(encoding="utf-8"))
     n = await conn.fetchval("SELECT count(*) FROM customers")
     await conn.close()

@@ -126,16 +126,33 @@ async def settle(customer_id: UUID, payload: SettleCreate, biz: CurrentBusiness 
             raise DomainError("Nothing to settle")
         if amount > outstanding:
             raise DomainError("Settle amount exceeds outstanding balance")
+        note = payload.note + (f" · {payload.mode}" if payload.mode else "")
         await conn.execute(
             """INSERT INTO khata_entries (business_id, customer_id, type, amount_paise, note)
                VALUES ($1, $2, 'payment', $3, $4)""",
-            biz.id, customer_id, amount, payload.note,
+            biz.id, customer_id, amount, note,
         )
         row = await conn.fetchrow(
             """UPDATE customers SET outstanding_balance_paise = outstanding_balance_paise - $3
                WHERE id = $1 AND business_id = $2
                RETURNING id, name, COALESCE(phone, '') AS phone, outstanding_balance_paise, created_at""",
             customer_id, biz.id, amount,
+        )
+        # Apply the collection FIFO to this customer's unpaid bills so each bill's
+        # balance_due (and thus its paid/partial status) updates correctly.
+        await conn.execute(
+            """WITH ranked AS (
+                 SELECT id, balance_due_paise,
+                        sum(balance_due_paise) OVER (ORDER BY created_at, id) - balance_due_paise AS before_paise
+                 FROM bills
+                 WHERE business_id = $1 AND customer_id = $2 AND balance_due_paise > 0
+               )
+               UPDATE bills b
+               SET balance_due_paise   = b.balance_due_paise - GREATEST(0, LEAST(r.balance_due_paise, $3 - r.before_paise)),
+                   amount_received_paise = b.amount_received_paise + GREATEST(0, LEAST(r.balance_due_paise, $3 - r.before_paise))
+               FROM ranked r
+               WHERE b.id = r.id AND r.before_paise < $3""",
+            biz.id, customer_id, amount,
         )
     return KhataCustomerRead(id=row["id"], name=row["name"], phone=row["phone"],
                              outstanding_paise=row["outstanding_balance_paise"], updated_at=row["created_at"])

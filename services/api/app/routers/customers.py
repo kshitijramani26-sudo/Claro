@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
-from ..schemas import ActivityRead, CustomerRead
+from ..schemas import ActivityRead, CustomerRead, PrescriptionRead
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -56,3 +56,30 @@ async def customer_activity(customer_id: UUID, limit: int = 50, biz: CurrentBusi
                      kind=r["kind"], at=r["at"], bill_id=r["bill_id"])
         for r in rows
     ]
+
+
+@router.get("/{customer_id}/prescriptions", response_model=list[PrescriptionRead])
+async def get_prescriptions(customer_id: UUID, limit: int = 50, biz: CurrentBusiness = Depends(get_current_business)) -> list[PrescriptionRead]:
+    limit = max(1, min(limit, 100))
+    async with biz_txn(biz.id) as conn:
+        rows = await conn.fetch(
+            """SELECT * FROM prescriptions
+               WHERE business_id = $1 AND customer_id = $2
+               ORDER BY date DESC, created_at DESC LIMIT $3""",
+            biz.id, customer_id, limit,
+        )
+    return [PrescriptionRead(**dict(r)) for r in rows]
+
+
+@router.get("/{customer_id}/prescriptions/latest", response_model=PrescriptionRead | None)
+async def get_latest_prescription(customer_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> PrescriptionRead | None:
+    async with biz_txn(biz.id) as conn:
+        row = await conn.fetchrow(
+            """SELECT * FROM prescriptions
+               WHERE business_id = $1 AND customer_id = $2
+               ORDER BY date DESC, created_at DESC LIMIT 1""",
+            biz.id, customer_id,
+        )
+    if row is None:
+        return None
+    return PrescriptionRead(**dict(row))

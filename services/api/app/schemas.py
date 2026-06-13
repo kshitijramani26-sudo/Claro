@@ -1,5 +1,5 @@
 """Pydantic v2 request/response models. All money fields are integer paise."""
-from datetime import datetime
+from datetime import date as dt_date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -123,6 +123,40 @@ class InventoryStatsRead(BaseModel):
     low_count: int
 
 
+# ── prescriptions ──
+class PrescriptionCreate(BaseModel):
+    date: dt_date | None = None  # YYYY-MM-DD; default CURRENT_DATE
+    r_dist_sph: str = ""
+    r_dist_cyl: str = ""
+    r_dist_axis: int | None = None
+    r_dist_vn: str = ""
+    r_near_sph: str = ""
+    r_near_cyl: str = ""
+    r_near_axis: int | None = None
+    r_near_vn: str = ""
+    l_dist_sph: str = ""
+    l_dist_cyl: str = ""
+    l_dist_axis: int | None = None
+    l_dist_vn: str = ""
+    l_near_sph: str = ""
+    l_near_cyl: str = ""
+    l_near_axis: int | None = None
+    l_near_vn: str = ""
+    add_r: str = ""
+    add_l: str = ""
+    pd: str = ""
+    lens_types: list[str] = []
+    remarks: str = ""
+
+
+class PrescriptionRead(PrescriptionCreate):
+    id: UUID
+    business_id: UUID
+    customer_id: UUID
+    bill_id: UUID | None = None
+    created_at: datetime
+
+
 # ── bills ──
 class BillLineCreate(BaseModel):
     inventory_item_id: UUID | None = None  # None ⇒ ad-hoc line, no stock effect
@@ -132,6 +166,7 @@ class BillLineCreate(BaseModel):
     # Ad-hoc lines only (inventory lines snapshot these from the item):
     tax_rate_bps: Literal[0, 500, 1200, 1800, 2800] = 0
     price_is_tax_inclusive: bool | None = None  # default: business pref
+    item_kind: Literal["frame", "lens", "other"] = "other"
 
 
 class BillCreate(BaseModel):
@@ -147,6 +182,18 @@ class BillCreate(BaseModel):
     payment_method_id: UUID | None = None
     discount_paise: int = Field(default=0, ge=0)
     note: str | None = None
+    # Advance / part payment: with payment_mode == CREDIT, record this much as paid
+    # now (via received_mode) and the rest as the customer's balance.
+    amount_received_paise: int = Field(default=0, ge=0)
+    received_mode: Literal["CASH", "UPI"] | None = None
+    # Optical fields
+    prescription: PrescriptionCreate | None = None
+    order_status: Literal["pending", "ready", "delivered"] = "delivered"
+    delivery_date: str | None = None  # YYYY-MM-DD
+
+
+class BillStatusUpdate(BaseModel):
+    order_status: Literal["pending", "ready", "delivered"]
 
 
 class BillItemRead(BaseModel):
@@ -158,6 +205,7 @@ class BillItemRead(BaseModel):
     taxable_paise: int
     tax_paise: int
     line_total_paise: int
+    item_kind: str
 
 
 class BillRead(BaseModel):
@@ -178,10 +226,17 @@ class BillRead(BaseModel):
     payment_method_id: UUID | None
     customer_id: UUID | None
     customer_name: str
+    customer_phone: str
     staff_id: UUID | None
     note: str | None
+    amount_received_paise: int
+    balance_due_paise: int
     created_at: datetime
     items: list[BillItemRead]
+    # Optical fields
+    prescription: PrescriptionRead | None = None
+    order_status: str | None = None
+    delivery_date: dt_date | datetime | None = None
 
 
 class UpiRead(BaseModel):
@@ -250,6 +305,7 @@ class KhataCreditCreate(BaseModel):
 
 class SettleCreate(BaseModel):
     amount_paise: int | None = Field(default=None, gt=0)  # None ⇒ settle in full
+    mode: Literal["CASH", "UPI"] | None = None            # how it was collected (receipt trail)
     note: str = "Settled up"
 
 
