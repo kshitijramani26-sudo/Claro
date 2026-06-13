@@ -10,6 +10,18 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-12] — Claude Code (Opus 4.8) — Preview-build verify + OTA confirm + first APK build
+- What changed:
+  - **Verify (TASK 1)**: confirmed `src/data/industries.ts` (14 industries) is imported by both `app/onboarding/profile.tsx` and `app/profile.tsx`. `tsc --noEmit` clean; `expo-doctor` 18/18. Deduped `app.json` android.permissions (READ/WRITE_CONTACTS were each listed twice → once each). Confirmed `eas.json` preview env targets the live backend (`EXPO_PUBLIC_API_BASE_URL=https://claro-backend-3zh8.onrender.com`, `USE_MOCK_DATA`/`USE_MOCKS=false`, `DEV_AUTH=false`, `BETA_AUTH=true`).
+  - **OTA (TASK 2)** — already wired by prior commits, verified intact: `expo-updates ~29.0.18` installed; `app.json` has `runtimeVersion: {policy: appVersion}` + `updates.url = https://u.expo.dev/<projectId>`; `eas.json` preview profile `channel: "preview"`. Added `cli.appVersionSource: "local"` to eas.json (silences the future-required warning; pairs with the appVersion runtime policy).
+  - **Live backend check**: Render `/openapi.json` confirms the deployed API is current — has `top_customers`, `pay_credit_paise`, `/auth/login`, `/staff/{id}/pay-salary`. Local `main` is in sync with `origin/main` (0 unpushed), so the APK's backend matches the codebase.
+  - **Build**: kicked off `eas build -p android --profile preview` (cloud) to produce the installable APK + shareable link.
+- Why: ship a fully-working, installable Android preview that talks to the live backend, with OTA so future JS fixes don't need a reinstall.
+- Owner runs:
+  - Rebuild (only when native config/deps change): `eas build -p android --profile preview`
+  - Push JS/asset fixes to the same installed APK: `eas update --branch preview -m "msg"`
+- Open items / next: install the finished APK on the emulator + a device for a full manual pass before wider rollout.
+
 ## [2026-06-12] — Antigravity (Gemini 3.5 Flash) — EAS Android Build Configuration
 - What changed:
   - **EAS Profile Configuration**: Modified `eas.json` preview profile environment variables to configure production API Base URL (`https://claro-backend-3zh8.onrender.com`), disable mock data, disable dev bypass, and enable Beta Auth.
