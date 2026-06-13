@@ -25,6 +25,13 @@ async def get_bill(bill_id: UUID, biz: CurrentBusiness = Depends(get_current_bus
     return await billsvc.get_bill(biz, bill_id)
 
 
+@router.delete("/{bill_id}")
+async def delete_bill(bill_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
+    """Void a bill created by mistake (reverses stock + revenue, removes the invoice)."""
+    await billsvc.void_bill(biz, bill_id)
+    return {"ok": True}
+
+
 async def _bill_vpa(biz: CurrentBusiness, bill: BillRead) -> tuple[str, str]:
     """(vpa, label) for the bill's chosen method, falling back to the default."""
     async with biz_txn(biz.id) as conn:

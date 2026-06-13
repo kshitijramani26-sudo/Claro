@@ -49,6 +49,40 @@ async def get_bill(biz: CurrentBusiness, bill_id: UUID) -> BillRead:
         return await _read_bill(conn, bill_id)
 
 
+async def void_bill(biz: CurrentBusiness, bill_id: UUID) -> None:
+    """Delete a bill created by mistake, fully reversing its side effects in one
+    transaction: restore stock, undo the customer's credit balance, and remove the
+    revenue/stock/staff ledger rows. bill_items cascade with the bill."""
+    async with biz_txn(biz.id) as conn:
+        bill = await conn.fetchrow(
+            "SELECT payment_mode, customer_id, grand_total_paise FROM bills WHERE id = $1 AND business_id = $2 FOR UPDATE",
+            bill_id, biz.id,
+        )
+        if bill is None:
+            raise NotFoundError("Bill not found")
+        # Restore stock for inventory-linked lines.
+        lines = await conn.fetch(
+            "SELECT inventory_item_id, qty FROM bill_items WHERE bill_id = $1 AND inventory_item_id IS NOT NULL",
+            bill_id,
+        )
+        for line in lines:
+            await conn.execute(
+                "UPDATE inventory_items SET qty_on_hand = qty_on_hand + $3 WHERE id = $1 AND business_id = $2",
+                line["inventory_item_id"], biz.id, line["qty"],
+            )
+        # Undo the customer's outstanding balance (credit bills); clamp at 0.
+        if bill["payment_mode"] == "CREDIT" and bill["customer_id"] is not None:
+            await conn.execute(
+                """UPDATE customers SET outstanding_balance_paise = GREATEST(0, outstanding_balance_paise - $3)
+                   WHERE id = $1 AND business_id = $2""",
+                bill["customer_id"], biz.id, bill["grand_total_paise"],
+            )
+        # Remove child ledger rows that FK the bill without ON DELETE CASCADE.
+        for table in ("stock_ledger", "khata_entries", "payments", "staff_ledger"):
+            await conn.execute(f"DELETE FROM {table} WHERE bill_id = $1 AND business_id = $2", bill_id, biz.id)
+        await conn.execute("DELETE FROM bills WHERE id = $1 AND business_id = $2", bill_id, biz.id)
+
+
 async def _resolve_customer(
     conn: asyncpg.Connection, biz: CurrentBusiness, payload: BillCreate
 ) -> UUID | None:
@@ -70,7 +104,7 @@ async def _resolve_customer(
         row = await conn.fetchrow(
             """INSERT INTO customers (business_id, name, phone, state_code)
                VALUES ($1, $2, $3, $4)
-               ON CONFLICT (business_id, phone) DO UPDATE
+               ON CONFLICT (business_id, phone) WHERE phone IS NOT NULL DO UPDATE
                  SET name = CASE WHEN EXCLUDED.name <> '' THEN EXCLUDED.name ELSE customers.name END
                RETURNING id""",
             biz.id, name or phone, phone, payload.customer_state_code,

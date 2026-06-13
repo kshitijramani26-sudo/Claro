@@ -30,7 +30,9 @@ async def list_inventory(biz: CurrentBusiness = Depends(get_current_business)) -
 async def inventory_stats(biz: CurrentBusiness = Depends(get_current_business)) -> InventoryStatsRead:
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
-            """SELECT COALESCE(sum(qty_on_hand::bigint * price_paise), 0) AS total_value,
+            # Stock value = what the owner PAID for on-hand stock (cost × qty), not its
+            # selling price — shows the capital tied up in inventory.
+            """SELECT COALESCE(sum(qty_on_hand::bigint * cost_paise), 0) AS total_value,
                       count(*) AS skus,
                       count(*) FILTER (WHERE qty_on_hand <= low_stock_threshold) AS low_count
                FROM inventory_items WHERE business_id = $1""",
@@ -97,6 +99,12 @@ async def patch_item(item_id: UUID, payload: InventoryPatch, biz: CurrentBusines
 @router.delete("/{item_id}")
 async def delete_item(item_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
     async with biz_txn(biz.id) as conn:
+        # Past bills snapshot the name/price, so detach (don't block delete) any
+        # historical references before removing the item. stock_ledger cascades.
+        await conn.execute(
+            "UPDATE bill_items SET inventory_item_id = NULL WHERE inventory_item_id = $1 AND business_id = $2",
+            item_id, biz.id,
+        )
         deleted = await conn.fetchval(
             "DELETE FROM inventory_items WHERE id = $1 AND business_id = $2 RETURNING id", item_id, biz.id
         )

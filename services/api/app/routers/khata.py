@@ -88,7 +88,7 @@ async def add_credit(payload: KhataCreditCreate, biz: CurrentBusiness = Depends(
             if phone:
                 cust_id = await conn.fetchval(
                     """INSERT INTO customers (business_id, name, phone) VALUES ($1, $2, $3)
-                       ON CONFLICT (business_id, phone) DO UPDATE SET name = EXCLUDED.name
+                       ON CONFLICT (business_id, phone) WHERE phone IS NOT NULL DO UPDATE SET name = EXCLUDED.name
                        RETURNING id""",
                     biz.id, name, phone,
                 )

@@ -91,6 +91,64 @@ async def _fetch(biz, sql, *args):
         return await conn.fetchval(sql, *args)
 
 
+# Regression: customer upsert with a phone must match the PARTIAL unique index
+# (business_id, phone) WHERE phone IS NOT NULL — previously 500'd in prod.
+async def test_add_credit_with_phone_upserts(biz):
+    from app.routers.khata import add_credit
+    c1 = await add_credit(KhataCreditCreate(name="Ravi", phone="98765 11111", amount_paise=10000), biz)
+    assert c1.outstanding_paise == 10000
+    c2 = await add_credit(KhataCreditCreate(name="Ravi K", phone="98765 11111", amount_paise=5000), biz)
+    assert c2.id == c1.id          # same customer (upserted on phone)
+    assert c2.outstanding_paise == 15000
+
+
+async def test_confirm_bill_with_customer_phone(biz):
+    item = await add_item(biz, "X", 10000, 5)
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item, name="-", qty=1, unit_price_paise=10000)],
+        payment_mode="CREDIT", customer_name="Sita", customer_phone="98765 22222", gst_mode="non_gst",
+    ))
+    assert bill.grand_total_paise == 10000  # no 500 on the phone-upsert path
+
+
+# #6 — stock value is cost basis (qty × cost), not selling price.
+async def test_inventory_stats_cost_basis(biz):
+    from app.routers.inventory import inventory_stats
+    await add_item(biz, "Cost1", price_paise=10000, qty=4, cost_paise=6000)
+    s = await inventory_stats(biz)
+    assert s.total_value_paise == 24000  # 4 × 6000 cost, not 4 × 10000 price
+
+
+# #7 — void a bill: restores stock, removes revenue rows + invoice.
+async def test_void_cash_bill_reverses(biz):
+    from app.services.bills import void_bill
+    item = await add_item(biz, "Y", 5000, 10)
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item, name="-", qty=3, unit_price_paise=5000)],
+        payment_mode="CASH", gst_mode="non_gst",
+    ))
+    assert await _fetch(biz, "SELECT qty_on_hand FROM inventory_items WHERE id=$1", item) == 7
+    await void_bill(biz, bill.id)
+    assert await _fetch(biz, "SELECT qty_on_hand FROM inventory_items WHERE id=$1", item) == 10
+    assert await _fetch(biz, "SELECT count(*) FROM bills WHERE id=$1", bill.id) == 0
+    assert await _fetch(biz, "SELECT count(*) FROM payments WHERE bill_id=$1", bill.id) == 0
+
+
+async def test_void_credit_bill_reverses_balance(biz):
+    from app.services.bills import void_bill
+    from .conftest import add_customer
+    cust = await add_customer(biz, "Bal")
+    item = await add_item(biz, "Z", 20000, 5)
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item, name="-", qty=1, unit_price_paise=20000)],
+        payment_mode="CREDIT", customer_id=cust, gst_mode="non_gst",
+    ))
+    assert await _fetch(biz, "SELECT outstanding_balance_paise FROM customers WHERE id=$1", cust) == 20000
+    await void_bill(biz, bill.id)
+    assert await _fetch(biz, "SELECT outstanding_balance_paise FROM customers WHERE id=$1", cust) == 0
+    assert await _fetch(biz, "SELECT count(*) FROM khata_entries WHERE bill_id=$1", bill.id) == 0
+
+
 # Analytics extended sections — top customers, averages, payment mix, busiest.
 async def test_analytics_sections(biz):
     from app.routers.analytics import analytics
