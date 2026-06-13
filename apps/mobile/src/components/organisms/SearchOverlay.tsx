@@ -70,7 +70,7 @@ export function SearchOverlay() {
             {hits.map((c, i) => (
               <Tap
                 key={c.id}
-                onPress={() => openCustomerActivity(c.id, c.name)}
+                onPress={() => openCustomerActivity(c.id, c.name, c.phone, c.outstanding)}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12,
                   borderBottomWidth: i === hits.length - 1 ? 0 : 1, borderBottomColor: Colors.divider,

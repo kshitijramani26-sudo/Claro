@@ -35,6 +35,16 @@ const PAY_MODES: { mode: PayMode; icon: SymbolName }[] = [
 
 const API_MODE: Record<PayMode, 'CASH' | 'UPI' | 'CREDIT'> = { Cash: 'CASH', UPI: 'UPI', Credit: 'CREDIT' };
 
+function phoneMatch(p1?: string, p2?: string): boolean {
+  if (!p1 || !p2) return false;
+  const clean1 = p1.replace(/\D/g, '');
+  const clean2 = p2.replace(/\D/g, '');
+  if (clean1.length >= 10 && clean2.length >= 10) {
+    return clean1.slice(-10) === clean2.slice(-10);
+  }
+  return clean1 === clean2;
+}
+
 export function CreateBillOverlay() {
   const theme = usePageTheme('billing');
   const cb = useAppStore((s) => s.cb);
@@ -132,11 +142,17 @@ export function CreateBillOverlay() {
     }
     const query = cb.custPhone || cb.custName;
     api.searchCustomers(query).then((hits) => {
-      const hit = hits.find((h) =>
-        cb.custPhone
-          ? h.phone.replace(/\s+/g, '') === cb.custPhone.replace(/\s+/g, '')
-          : h.name.toLowerCase() === cb.custName.toLowerCase()
-      );
+      const hit = hits.find((h) => {
+        if (cb.custPhone) {
+          return phoneMatch(h.phone, cb.custPhone);
+        }
+        if (cb.custName) {
+          const cName = cb.custName.trim().toLowerCase();
+          const hName = h.name.trim().toLowerCase();
+          return hName.startsWith(cName) || cName.startsWith(hName);
+        }
+        return false;
+      });
       if (hit) {
         api.getLatestPrescription(hit.id).then((rx) => {
           if (rx) {
@@ -183,9 +199,9 @@ export function CreateBillOverlay() {
 
   const defaultMethod = (methods ?? []).find((m) => m.isDefault) ?? (methods ?? [])[0];
   const chosenMethod = (methods ?? []).find((m) => m.id === cb.payMethodId) ?? defaultMethod;
-  const isUpi = !isAdvance && cb.payMode === 'UPI';
+  const isUpi = (!isAdvance && cb.payMode === 'UPI') || (isAdvance && cb.receivedMode === 'UPI');
   const upiUri = chosenMethod
-    ? buildUpiUri({ vpa: chosenMethod.upiId, payeeName: business?.name ?? '', amountRupees: totals.grand, note: saved?.invoiceNo ?? 'Bill' })
+    ? buildUpiUri({ vpa: chosenMethod.upiId, payeeName: business?.name ?? '', amountRupees: isAdvance && cb.receivedMode === 'UPI' ? receivedRupees : totals.grand, note: saved?.invoiceNo ?? 'Bill' })
     : null;
 
   const confirm = async (): Promise<BillResult | null> => {
@@ -364,7 +380,7 @@ export function CreateBillOverlay() {
       {scanOpen ? (
         <ScanPayOverlay
           shopName={business?.name ?? ''}
-          amountRupees={totals.grand}
+          amountRupees={isAdvance && cb.receivedMode === 'UPI' ? receivedRupees : totals.grand}
           methods={methods ?? []}
           selectedId={chosenMethod?.id ?? null}
           onSelect={(id) => cbSet({ payMethodId: id })}
@@ -681,6 +697,48 @@ export function CreateBillOverlay() {
               </Tap>
             </View>
             
+            {lastRxInfo && !prescription && (
+              <Tap
+                onPress={() => {
+                  const rx = lastRxInfo.rx;
+                  const payload = {
+                    date: new Date().toISOString().split('T')[0],
+                    rDistSph: rx.rDistSph || '',
+                    rDistCyl: rx.rDistCyl || '',
+                    rDistAxis: rx.rDistAxis ?? null,
+                    rDistVn: rx.rDistVn || '',
+                    rNearSph: rx.rNearSph || '',
+                    rNearCyl: rx.rNearCyl || '',
+                    rNearAxis: rx.rNearAxis ?? null,
+                    rNearVn: rx.rNearVn || '',
+                    lDistSph: rx.lDistSph || '',
+                    lDistCyl: rx.lDistCyl || '',
+                    lDistAxis: rx.lDistAxis ?? null,
+                    lDistVn: rx.lDistVn || '',
+                    lNearSph: rx.lNearSph || '',
+                    lNearCyl: rx.lNearCyl || '',
+                    lNearAxis: rx.lNearAxis ?? null,
+                    lNearVn: rx.lNearVn || '',
+                    addR: rx.addR || '',
+                    addL: rx.addL || '',
+                    pd: rx.pd || '',
+                    lensTypes: rx.lensTypes || [],
+                    remarks: rx.remarks || '',
+                  };
+                  setPrescription(payload);
+                  flashToast('Previous Rx attached to bill');
+                }}
+                style={{
+                  padding: 12, borderRadius: Radius.tile, borderWidth: 1.5, borderColor: Colors.success,
+                  backgroundColor: Colors.successTile, alignItems: 'center', justifyContent: 'center', marginTop: 4
+                }}
+              >
+                <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.success }}>
+                  Use last Rx ({new Date(lastRxInfo.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                </Text>
+              </Tap>
+            )}
+
             <View style={{ gap: 10, marginTop: 4 }}>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <View style={{ flex: 1 }}>

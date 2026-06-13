@@ -220,11 +220,12 @@ const realApi = {
   },
   async getKhataTimeline(customerId: string | null): Promise<KhataTransaction[]> {
     if (!customerId) return [];
-    const data = await request<{ entries: { id: number; label: string; debit_paise: number; credit_paise: number; at: string }[] }>(`/khata/${customerId}`);
+    const data = await request<{ entries: { id: number; label: string; debit_paise: number; credit_paise: number; at: string; bill_id?: string | null }[] }>(`/khata/${customerId}`);
     return data.entries.map((e) => ({
       id: String(e.id), label: e.label,
       date: new Date(e.at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
       debit: r(e.debit_paise), credit: r(e.credit_paise),
+      billId: e.bill_id ?? null,
     }));
   },
   async addCredit(input: { name: string; phone: string; amountRupees: number; note: string }): Promise<void> {
@@ -458,6 +459,35 @@ const realApi = {
     const list = await request<WirePrescription[]>(`/customers/${customerId}/prescriptions`);
     return list.map(mapPrescription);
   },
+  async savePrescription(customerId: string, rx: any): Promise<PrescriptionResult> {
+    const r = await request<WirePrescription>(`/customers/${customerId}/prescriptions`, {
+      method: 'POST',
+      json: {
+        r_dist_sph: rx.rDistSph || '',
+        r_dist_cyl: rx.rDistCyl || '',
+        r_dist_axis: rx.rDistAxis ?? null,
+        r_dist_vn: rx.rDistVn || '',
+        r_near_sph: rx.rNearSph || '',
+        r_near_cyl: rx.rNearCyl || '',
+        r_near_axis: rx.rNearAxis ?? null,
+        r_near_vn: rx.rNearVn || '',
+        l_dist_sph: rx.lDistSph || '',
+        l_dist_cyl: rx.lDistCyl || '',
+        l_dist_axis: rx.lDistAxis ?? null,
+        l_dist_vn: rx.lDistVn || '',
+        l_near_sph: rx.lNearSph || '',
+        l_near_cyl: rx.lNearCyl || '',
+        l_near_axis: rx.lNearAxis ?? null,
+        l_near_vn: rx.lNearVn || '',
+        add_r: rx.addR || '',
+        add_l: rx.addL || '',
+        pd: rx.pd || '',
+        lens_types: rx.lensTypes || [],
+        remarks: rx.remarks || '',
+      }
+    });
+    return mapPrescription(r);
+  },
 };
 
 // ── In-memory Mock state and implementation ──
@@ -496,7 +526,36 @@ let mPaymentMethods: MockMethod[] = [
 let invoiceCounter = 1043;
 let mBills: Record<string, BillResult> = {};
 const mSalaryPaid: Record<string, boolean> = {};
-let mPrescriptions: WirePrescription[] = [];
+let mPrescriptions: WirePrescription[] = [
+  {
+    id: 'rx-mock-1',
+    business_id: 'biz-default',
+    customer_id: 'k1',
+    date: '2026-06-11',
+    r_dist_sph: '+0.50',
+    r_dist_cyl: '-0.25',
+    r_dist_axis: 90,
+    r_dist_vn: '6/6',
+    r_near_sph: '+1.50',
+    r_near_cyl: '',
+    r_near_axis: null,
+    r_near_vn: 'N6',
+    l_dist_sph: '+0.75',
+    l_dist_cyl: '-0.50',
+    l_dist_axis: 180,
+    l_dist_vn: '6/6',
+    l_near_sph: '+1.75',
+    l_near_cyl: '',
+    l_near_axis: null,
+    l_near_vn: 'N6',
+    add_r: '+1.00',
+    add_l: '+1.00',
+    pd: '64',
+    lens_types: ['Single Vision', 'Anti-reflection'],
+    remarks: 'Seeded eye prescription',
+    created_at: new Date().toISOString(),
+  }
+];
 
 const mockApi = {
   async getBusiness(): Promise<Business> {
@@ -962,20 +1021,36 @@ const mockApi = {
         date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
         debit: balanceDue,
         credit: 0,
+        billId: billResult.id,
       });
 
       mSummary.pendingKhata += balanceDue;
     }
 
-    mActivities.unshift({
-      id: billResult.id,
-      title: `Bill ${invoiceNo}`,
-      sub: `${input.paymentMode} · ${input.customerName || 'Walk-in'}`,
-      amount: grandTotal,
-      kind: 'sale',
-      time: 'Just now',
-      billId: billResult.id,
-    });
+    if (input.paymentMode === 'CREDIT') {
+      if (balanceDue > 0) {
+        let customer = mKhata.find((c) => c.name.toLowerCase() === input.customerName!.toLowerCase());
+        mActivities.unshift({
+          id: `khata-${billResult.id}`,
+          title: customer ? customer.name : (input.customerName || 'Walk-in'),
+          sub: 'Credit added · Khata',
+          amount: balanceDue,
+          kind: 'credit',
+          time: 'Just now',
+          billId: billResult.id,
+        });
+      }
+    } else {
+      mActivities.unshift({
+        id: billResult.id,
+        title: `Bill ${invoiceNo}`,
+        sub: `${input.paymentMode} · ${input.customerName || 'Walk-in'}`,
+        amount: grandTotal,
+        kind: 'sale',
+        time: 'Just now',
+        billId: billResult.id,
+      });
+    }
 
     mSummary.todaysSales += grandTotal;
     mSummary.todaysBills += 1;
@@ -1083,7 +1158,7 @@ const mockApi = {
       amount: t.debit > 0 ? t.debit : t.credit,
       kind: t.debit > 0 ? ('credit' as const) : ('settle' as const),
       time: t.date,
-      billId: null,
+      billId: (t as any).billId ?? null,
     }));
   },
   async updateBillStatus(billId: string, status: 'pending' | 'ready' | 'delivered'): Promise<BillResult> {
@@ -1103,6 +1178,39 @@ const mockApi = {
     const list = mPrescriptions.filter((p) => p.customer_id === customerId);
     const sorted = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
     return sorted.map(mapPrescription);
+  },
+  async savePrescription(customerId: string, rx: any): Promise<PrescriptionResult> {
+    const wireP: WirePrescription = {
+      id: `rx-${Date.now()}`,
+      business_id: 'biz-default',
+      customer_id: customerId,
+      bill_id: null,
+      date: new Date().toISOString().split('T')[0],
+      r_dist_sph: rx.rDistSph || '',
+      r_dist_cyl: rx.rDistCyl || '',
+      r_dist_axis: rx.rDistAxis ?? null,
+      r_dist_vn: rx.rDistVn || '',
+      r_near_sph: rx.rNearSph || '',
+      r_near_cyl: rx.rNearCyl || '',
+      r_near_axis: rx.rNearAxis ?? null,
+      r_near_vn: rx.rNearVn || '',
+      l_dist_sph: rx.lDistSph || '',
+      l_dist_cyl: rx.lDistCyl || '',
+      l_dist_axis: rx.lDistAxis ?? null,
+      l_dist_vn: rx.lDistVn || '',
+      l_near_sph: rx.lNearSph || '',
+      l_near_cyl: rx.lNearCyl || '',
+      l_near_axis: rx.lNearAxis ?? null,
+      l_near_vn: rx.lNearVn || '',
+      add_r: rx.addR || '',
+      add_l: rx.addL || '',
+      pd: rx.pd || '',
+      lens_types: rx.lensTypes || [],
+      remarks: rx.remarks || '',
+      created_at: new Date().toISOString(),
+    };
+    mPrescriptions.push(wireP);
+    return mapPrescription(wireP);
   },
 };
 

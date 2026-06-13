@@ -65,6 +65,9 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
   const paid = isPaid(bill);
   const received = bill.amountReceived;
   const balance = bill.balanceDue;
+  const isPartial = bill.paymentMode === 'CREDIT' && received > 0;
+  const statusClass = paid ? 'status-paid' : (isPartial ? 'status-partial' : 'status-unpaid');
+  const statusLabel = paid ? '✓ PAID' : (isPartial ? '⏳ PARTIAL' : '⏳ UNPAID');
 
   // Build items rows
   const itemRows = bill.items.map((item) => {
@@ -162,6 +165,7 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
       padding: 3px 10px; border-radius: 6px; letter-spacing: 0.6px; }
     .status-paid { background: #E8F7F0; color: #16A34A; }
     .status-unpaid { background: #FDECF2; color: #E5484D; }
+    .status-partial { background: #FEF3E2; color: #C2700A; }
 
     /* ── Meta band ── */
     .meta-band { display: flex; gap: 0; margin-top: 14px; border: 1px solid #ECE6F4; border-radius: 8px; overflow: hidden; }
@@ -247,7 +251,7 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
       <div class="doc-block">
         <div class="doc-title">${docTitle}</div>
         <div><span class="doc-original">ORIGINAL</span></div>
-        <div><span class="status-badge ${paid ? 'status-paid' : 'status-unpaid'}">${paid ? '✓ PAID' : '⏳ UNPAID'}</span></div>
+        <div><span class="status-badge ${statusClass}">${statusLabel}</span></div>
       </div>
     </div>
 
@@ -397,7 +401,18 @@ export function buildInvoiceMessage(bill: BillResult, business: Business | null,
   ];
   if (bill.discount > 0) lines.push(`Discount: − ${formatINR(bill.discount)}`);
   lines.push(`*Total: ${formatINR(bill.grandTotal)}*`);
-  lines.push(isPaid(bill) ? '✅ Status: PAID' : '🟠 Status: UNPAID');
+  if (bill.paymentMode === 'CREDIT') {
+    if (bill.amountReceived > 0) {
+      lines.push('⏳ Status: PARTIALLY PAID');
+      lines.push(`• Paid: ${formatINR(bill.amountReceived)}`);
+      lines.push(`• Balance Due: ${formatINR(bill.balanceDue)}`);
+    } else {
+      lines.push('🟠 Status: UNPAID');
+      lines.push(`• Balance Due: ${formatINR(bill.balanceDue)}`);
+    }
+  } else {
+    lines.push('✅ Status: PAID');
+  }
   if (business?.industry === 'Optical') {
     if (bill.orderStatus) {
       const statusEmoji = bill.orderStatus === 'delivered' ? '✅ Delivered' : bill.orderStatus === 'ready' ? '👓 Ready for Pickup' : '⏳ Pending';
@@ -405,6 +420,36 @@ export function buildInvoiceMessage(bill: BillResult, business: Business | null,
     }
     if (bill.deliveryDate) {
       lines.push(`Expected Delivery: ${bill.deliveryDate}`);
+    }
+    if (bill.prescription) {
+      const rx = bill.prescription;
+      lines.push('');
+      lines.push('*Eye Prescription (Rx)*:');
+      if (rx.rDistSph || rx.rDistCyl || rx.rDistAxis || rx.rDistVn) {
+        lines.push(`• R. Dist: SPH ${rx.rDistSph || '—'} | CYL ${rx.rDistCyl || '—'} | Axis ${rx.rDistAxis ?? '—'} | VA ${rx.rDistVn || '—'}`);
+      }
+      if (rx.rNearSph || rx.rNearCyl || rx.rNearAxis || rx.rNearVn) {
+        lines.push(`• R. Near: SPH ${rx.rNearSph || '—'} | CYL ${rx.rNearCyl || '—'} | Axis ${rx.rNearAxis ?? '—'} | VA ${rx.rNearVn || '—'}`);
+      }
+      if (rx.lDistSph || rx.lDistCyl || rx.lDistAxis || rx.lDistVn) {
+        lines.push(`• L. Dist: SPH ${rx.lDistSph || '—'} | CYL ${rx.lDistCyl || '—'} | Axis ${rx.lDistAxis ?? '—'} | VA ${rx.lDistVn || '—'}`);
+      }
+      if (rx.lNearSph || rx.lNearCyl || rx.lNearAxis || rx.lNearVn) {
+        lines.push(`• L. Near: SPH ${rx.lNearSph || '—'} | CYL ${rx.lNearCyl || '—'} | Axis ${rx.lNearAxis ?? '—'} | VA ${rx.lNearVn || '—'}`);
+      }
+      const addParts: string[] = [];
+      if (rx.addR) addParts.push(`Add R: ${rx.addR}`);
+      if (rx.addL) addParts.push(`Add L: ${rx.addL}`);
+      if (rx.pd) addParts.push(`P.D.: ${rx.pd} mm`);
+      if (addParts.length > 0) {
+        lines.push(`• ${addParts.join(' | ')}`);
+      }
+      if (rx.lensTypes && rx.lensTypes.length > 0) {
+        lines.push(`• Lens: ${rx.lensTypes.join(', ')}`);
+      }
+      if (rx.remarks) {
+        lines.push(`• Remarks: ${rx.remarks}`);
+      }
     }
   }
   if (opts.pdfUrl) lines.push(`Invoice PDF: ${opts.pdfUrl}`);

@@ -47,6 +47,7 @@ export interface KhataTransaction {
   date: string;
   debit: number;
   credit: number;
+  billId?: string | null;
 }
 
 export interface InventoryStats {

@@ -188,7 +188,7 @@ export function InvoiceCard({ shopName, gstin, gstMode, customer, items, invoice
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textPrimary }}>Scan to pay via UPI</Text>
-            <Money value={totals.grand} style={[{ fontFamily: Font.extrabold, fontSize: 20, letterSpacing: -0.4, color: accent, marginTop: 4 }, tnum]} />
+            <Money value={(amountReceived !== undefined && amountReceived > 0 && (balanceDue ?? 0) > 0) ? amountReceived : totals.grand} style={[{ fontFamily: Font.extrabold, fontSize: 20, letterSpacing: -0.4, color: accent, marginTop: 4 }, tnum]} />
             <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted, marginTop: 3 }}>
               {upiLabel || shopName}
             </Text>
