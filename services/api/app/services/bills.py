@@ -287,10 +287,14 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
             rx = payload.prescription
             rx_date = None
             if rx.date:
-                try:
-                    rx_date = date.fromisoformat(rx.date)
-                except ValueError:
-                    pass
+                from datetime import date as dt_date
+                if isinstance(rx.date, dt_date):
+                    rx_date = rx.date
+                else:
+                    try:
+                        rx_date = dt_date.fromisoformat(str(rx.date))
+                    except (ValueError, TypeError):
+                        pass
             await conn.execute(
                 """INSERT INTO prescriptions (business_id, customer_id, bill_id, date,
                                              r_dist_sph, r_dist_cyl, r_dist_axis, r_dist_vn,
