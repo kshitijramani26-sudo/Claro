@@ -10,6 +10,18 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-12] — Claude Code (Opus 4.8) — Device-test bug fixes (500s, deletes, edits, cost-basis stock)
+- Reported from on-device (Android APK → live Render/Supabase) testing:
+  - **#1/#2/#4 — 500 on bill-confirm / PDF / WhatsApp / add-credit (CRITICAL).** Root cause found via Supabase MCP postgres logs + reproduction: `ON CONFLICT (business_id, phone)` cannot infer the **partial** unique index `customers_biz_phone_idx (... WHERE phone IS NOT NULL)` → `42P10`. Any customer upsert *with a phone* 500'd. Local tests had only upserted customers without a phone, so it slipped through. Fix: add `WHERE phone IS NOT NULL` to the conflict target in `services/bills.py` and `routers/khata.py`. PDF/WhatsApp 500'd because they auto-confirm the bill first.
+  - **#7 — delete an invoice.** New `DELETE /bills/{id}` → `void_bill()`: one txn restores stock, undoes the customer credit balance (clamped ≥ 0), removes stock/khata/payment/staff ledger rows, deletes the bill (items cascade). Frontend: "Delete invoice" button on `InvoiceSummaryOverlay` with confirm dialog.
+  - **#3 — edit/remove staff.** Backend `PATCH`/`DELETE /staff/{id}` already existed; wired `api.patchStaff`/`deleteStaff` + an "Edit" button on `StaffDetailOverlay` opening a sheet (name/role/phone/salary) and "Remove staff member". Profile subtitle now shows role + phone.
+  - **#5 — delete inventory item.** `DELETE /inventory/{id}` hardened to NULL historical `bill_items.inventory_item_id` first (avoids FK 500 on a sold item). Frontend: trash icon per inventory row + confirm.
+  - **#6 — stock value = cost basis.** `inventory/stats` total now `sum(qty × cost_paise)` (capital invested), not selling price.
+  - **#8 — theme:** all new affordances use the page-themed tokens (staff mint, stock amber, billing lavender) + danger tokens for destructive actions.
+- Verified: `tsc` clean; **pytest 34** (added phone-upsert regression, confirm-with-phone, cost basis, void cash, void-credit-reverses-balance). Reproduced + fixed the `42P10` against the hosted DB directly (rolled back).
+- Deploy: backend → `git push origin main` (Render auto-redeploy); frontend → `eas update --branch preview` (OTA to the installed APK, no reinstall). DB schema unchanged (the index was fine; the query was wrong).
+- Open items / next: owner re-tests the four 500 flows + the new delete/edit actions on-device after Render redeploys + the OTA lands.
+
 ## [2026-06-12] — Claude Code (Opus 4.8) — Preview-build verify + OTA confirm + first APK build
 - What changed:
   - **Verify (TASK 1)**: confirmed `src/data/industries.ts` (14 industries) is imported by both `app/onboarding/profile.tsx` and `app/profile.tsx`. `tsc --noEmit` clean; `expo-doctor` 18/18. Deduped `app.json` android.permissions (READ/WRITE_CONTACTS were each listed twice → once each). Confirmed `eas.json` preview env targets the live backend (`EXPO_PUBLIC_API_BASE_URL=https://claro-backend-3zh8.onrender.com`, `USE_MOCK_DATA`/`USE_MOCKS=false`, `DEV_AUTH=false`, `BETA_AUTH=true`).
