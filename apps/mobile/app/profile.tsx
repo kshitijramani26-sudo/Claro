@@ -8,6 +8,7 @@ import { Tap } from '@/components/atoms/Tap';
 import { Avatar } from '@/components/atoms/Avatar';
 import { Input } from '@/components/atoms/Input';
 import { Select } from '@/components/atoms/Select';
+import { IndustrySelect } from '@/components/molecules/IndustrySelect';
 import { PrimaryButton, HeaderIconButton } from '@/components/atoms/Button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
@@ -17,7 +18,6 @@ import { GST_STATES, stateName } from '@/lib/states';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
 import { useAppStore, useBrand } from '@/state/store';
-import { INDUSTRIES } from '@/data/industries';
 
 const BG = '#F6F5FB';
 
@@ -155,7 +155,7 @@ export default function Profile() {
           <SectionTitle icon="storefront" label="Business" accent={brand.brand} />
           <Input label="Shop name" value={name} onChangeText={setName} focusColor={brand.brand} height={50} />
           <Input label="Owner name" value={owner} onChangeText={setOwner} focusColor={brand.brand} height={50} />
-          <Select label="Industry" value={industry} options={INDUSTRIES} onChange={setIndustry} placeholder="Select industry" accent={brand.brand} height={50} />
+          <IndustrySelect label="Industry" value={industry} onChange={setIndustry} placeholder="Select industry" accent={brand.brand} height={50} />
           <Select
             label="Business state (drives GST)"
             value={stateName(state)}

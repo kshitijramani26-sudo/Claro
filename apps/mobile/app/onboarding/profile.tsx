@@ -3,8 +3,8 @@ import { useRouter } from 'expo-router';
 import { ObFrame } from '@/components/organisms/ObFrame';
 import { Input } from '@/components/atoms/Input';
 import { Select } from '@/components/atoms/Select';
+import { IndustrySelect } from '@/components/molecules/IndustrySelect';
 import { useAppStore, useBrand } from '@/state/store';
-import { INDUSTRIES } from '@/data/industries';
 
 /** Step 3 — business profile. */
 export default function Profile() {
@@ -42,10 +42,9 @@ export default function Profile() {
           focusColor={brand.brand}
           autoCapitalize="words"
         />
-        <Select
+        <IndustrySelect
           label="Industry"
           value={form.industry}
-          options={INDUSTRIES}
           onChange={(v) => setForm({ industry: v })}
           placeholder="Select your industry"
           accent={brand.brand}
