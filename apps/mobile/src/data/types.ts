@@ -171,6 +171,36 @@ export interface PaymentMethod {
   isDefault: boolean;
 }
 
+export interface PrescriptionResult {
+  id: string;
+  businessId: string;
+  customerId: string;
+  billId?: string | null;
+  date: string;
+  rDistSph: string;
+  rDistCyl: string;
+  rDistAxis: number | null;
+  rDistVn: string;
+  rNearSph: string;
+  rNearCyl: string;
+  rNearAxis: number | null;
+  rNearVn: string;
+  lDistSph: string;
+  lDistCyl: string;
+  lDistAxis: number | null;
+  lDistVn: string;
+  lNearSph: string;
+  lNearCyl: string;
+  lNearAxis: number | null;
+  lNearVn: string;
+  addR: string;
+  addL: string;
+  pd: string;
+  lensTypes: string[];
+  remarks: string;
+  createdAt: string;
+}
+
 export interface BillResult {
   id: string;
   invoiceNo: string;
@@ -186,6 +216,10 @@ export interface BillResult {
   grandTotal: number;
   paymentMode: 'CASH' | 'UPI' | 'CREDIT';
   customerName: string;
+  customerPhone: string;
+  /** Advance / part payment: paid now vs still owed. */
+  amountReceived: number;
+  balanceDue: number;
   date: string;
   items: {
     name: string;
@@ -200,7 +234,11 @@ export interface BillResult {
     taxable?: number;
     /** Tax amount for this line (rupees). */
     taxPaise?: number;
+    itemKind?: 'frame' | 'lens' | 'other';
   }[];
+  prescription?: PrescriptionResult | null;
+  orderStatus?: 'pending' | 'ready' | 'delivered';
+  deliveryDate?: string | null;
 }
 
 export interface UpiInfo {

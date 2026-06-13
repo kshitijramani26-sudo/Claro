@@ -110,6 +110,11 @@ export function InvoiceSummaryOverlay() {
                 qrImageUrl={defaultMethod?.qrImageUrl ?? null}
                 upiLabel={defaultMethod ? defaultMethod.label || defaultMethod.upiId : business?.name}
                 onQrPress={() => setScanOpen(true)}
+                amountReceived={bill.amountReceived}
+                balanceDue={bill.balanceDue}
+                prescription={bill.prescription}
+                orderStatus={bill.orderStatus}
+                deliveryDate={bill.deliveryDate}
               />
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                 <OutlineButton

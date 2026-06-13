@@ -37,6 +37,7 @@ export interface BillItem {
   inventoryItemId: string | null;
   taxRateBps: number;
   inclusive: boolean;
+  itemKind?: 'frame' | 'lens' | 'other';
 }
 
 /** AppState — implemented verbatim from the design handoff's "State Management" section. */
@@ -83,6 +84,12 @@ export interface AppState {
     discountKind: 'amount' | 'percent';
     /** Raw discount input (rupees when 'amount', percent when 'percent'). */
     discountInput: string;
+    /** Full payment vs advance/part payment. */
+    payKind: 'full' | 'advance';
+    /** Amount received now (rupees) when payKind = 'advance'. */
+    receivedInput: string;
+    /** How the advance was received. */
+    receivedMode: 'Cash' | 'UPI';
   };
   period: 'today' | 'week' | 'month';
   khataSearch: string;
@@ -111,6 +118,9 @@ function initialCb(): AppState['cb'] {
     payMethodId: null,
     discountKind: 'amount',
     discountInput: '',
+    payKind: 'full',
+    receivedInput: '',
+    receivedMode: 'Cash',
   };
 }
 
@@ -150,6 +160,7 @@ interface AppActions {
   cbAddCustomItem: () => void;
   cbInc: (id: string) => void;
   cbDec: (id: string) => void;
+  cbSetItemKind: (id: string, kind: 'frame' | 'lens' | 'other') => void;
   cbReset: () => void;
   refresh: () => void;
   setBusiness: (business: Business | null) => void;
@@ -261,6 +272,10 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
           .map((it) => (it.id === id ? { ...it, qty: it.qty - 1 } : it))
           .filter((it) => it.qty > 0),
       },
+    })),
+  cbSetItemKind: (id, kind) =>
+    set((s) => ({
+      cb: { ...s.cb, items: s.cb.items.map((it) => (it.id === id ? { ...it, itemKind: kind } : it)) },
     })),
   cbReset: () => set({ cb: initialCb() }),
   refresh: () => set((s) => ({ refreshKey: s.refreshKey + 1 })),

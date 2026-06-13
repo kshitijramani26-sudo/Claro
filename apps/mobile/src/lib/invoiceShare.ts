@@ -63,8 +63,8 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
   const hasGstTax = isGst && bill.taxTotal > 0;
   const docTitle = isGst ? 'TAX INVOICE' : 'BILL OF SUPPLY';
   const paid = isPaid(bill);
-  const received = paid ? bill.grandTotal : 0;
-  const balance = bill.grandTotal - received;
+  const received = bill.amountReceived;
+  const balance = bill.balanceDue;
 
   // Build items rows
   const itemRows = bill.items.map((item) => {
@@ -219,6 +219,16 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
       border: 1px solid #E7E9F2; border-radius: 8px; }
     .terms-body { font-size: 11.5px; color: #6B7280; line-height: 1.7; margin-top: 4px; }
 
+    /* ── Rx Section ── */
+    .rx-section { margin-top: 22px; }
+    .rx-title { font-size: 11px; font-weight: 800; color: #2D1150; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .rx-table { width: 100%; border: 1.5px solid #ECE6F4; border-radius: 8px; overflow: hidden; border-collapse: collapse; }
+    .rx-table th { padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; }
+    .rx-table td { padding: 8px 8px; font-size: 11.5px; text-align: center; border: 1px solid #ECE6F4; }
+    .rx-table td:first-child { text-align: left; font-weight: 700; background: #F7F5FC; width: 80px; }
+    .rx-meta { margin-top: 10px; font-size: 12px; color: #6B7280; line-height: 1.6; }
+    .rx-meta span { font-weight: 700; color: #0F1222; margin-right: 15px; }
+
     /* ── Footer ── */
     .footer { text-align: center; color: #9AA0AC; font-size: 11px; margin-top: 28px;
       padding-top: 14px; border-top: 1px dashed #E3E5EC; }
@@ -255,6 +265,12 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
         <div class="meta-label">Due Date</div>
         <div class="meta-value">${paid ? esc(bill.date) : 'Upon receipt'}</div>
       </div>
+      ${bill.deliveryDate ? `
+      <div class="meta-cell">
+        <div class="meta-label">Delivery Date</div>
+        <div class="meta-value">${esc(new Date(bill.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}</div>
+      </div>
+      ` : ''}
     </div>
 
     <!-- Bill To -->
@@ -301,6 +317,56 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
 
     ${taxSummaryRows}
 
+    <!-- Eye Prescription (Rx) -->
+    ${bill.prescription ? (() => {
+      const rx = bill.prescription;
+      const rxRow = (label: string, sph: string, cyl: string, axis: any, vn: string) => {
+        if (!sph && !cyl && !axis && !vn) return '';
+        return `<tr>
+          <td>${label}</td>
+          <td>${esc(sph || '—')}</td>
+          <td>${esc(cyl || '—')}</td>
+          <td>${axis != null ? esc(String(axis)) : '—'}</td>
+          <td>${esc(vn || '—')}</td>
+        </tr>`;
+      };
+      
+      const rDist = rxRow('R. Dist', rx.rDistSph, rx.rDistCyl, rx.rDistAxis, rx.rDistVn);
+      const rNear = rxRow('R. Near', rx.rNearSph, rx.rNearCyl, rx.rNearAxis, rx.rNearVn);
+      const lDist = rxRow('L. Dist', rx.lDistSph, rx.lDistCyl, rx.lDistAxis, rx.lDistVn);
+      const lNear = rxRow('L. Near', rx.lNearSph, rx.lNearCyl, rx.lNearAxis, rx.lNearVn);
+      
+      if (!rDist && !rNear && !lDist && !lNear) return '';
+      
+      return `<div class="rx-section" style="margin-top: 22px;">
+        <div class="rx-title" style="font-size: 11px; font-weight: 800; color: #2D1150; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Eye Prescription (Rx)</div>
+        <table class="rx-table" style="width: 100%; border: 1.5px solid #ECE6F4; border-radius: 8px; overflow: hidden; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; text-align: left;">Eye</th>
+              <th style="padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; text-align: center;">SPH</th>
+              <th style="padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; text-align: center;">CYL</th>
+              <th style="padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; text-align: center;">Axis</th>
+              <th style="padding: 6px 8px; font-size: 10px; background: #F7F5FC; color: #2D1150; font-weight: 700; border: 1px solid #ECE6F4; text-align: center;">V.A.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rDist}
+            ${rNear}
+            ${lDist}
+            ${lNear}
+          </tbody>
+        </table>
+        <div class="rx-meta" style="margin-top: 10px; font-size: 12px; color: #6B7280; line-height: 1.6;">
+          ${rx.addR ? `<span>Add R: <b>${esc(rx.addR)}</b></span>` : ''}
+          ${rx.addL ? `<span>Add L: <b>${esc(rx.addL)}</b></span>` : ''}
+          ${rx.pd ? `<span>P.D.: <b>${esc(rx.pd)} mm</b></span>` : ''}
+          ${rx.lensTypes && rx.lensTypes.length > 0 ? `<br/><span>Lens: <b>${esc(rx.lensTypes.join(', '))}</b></span>` : ''}
+          ${rx.remarks ? `<br/><span>Remarks: <i>${esc(rx.remarks)}</i></span>` : ''}
+        </div>
+      </div>`;
+    })() : ''}
+
     <!-- Terms & Conditions -->
     <div class="terms">
       <div class="section-label">Terms &amp; Conditions</div>
@@ -332,6 +398,15 @@ export function buildInvoiceMessage(bill: BillResult, business: Business | null,
   if (bill.discount > 0) lines.push(`Discount: − ${formatINR(bill.discount)}`);
   lines.push(`*Total: ${formatINR(bill.grandTotal)}*`);
   lines.push(isPaid(bill) ? '✅ Status: PAID' : '🟠 Status: UNPAID');
+  if (business?.industry === 'Optical') {
+    if (bill.orderStatus) {
+      const statusEmoji = bill.orderStatus === 'delivered' ? '✅ Delivered' : bill.orderStatus === 'ready' ? '👓 Ready for Pickup' : '⏳ Pending';
+      lines.push(`Specs Status: ${statusEmoji}`);
+    }
+    if (bill.deliveryDate) {
+      lines.push(`Expected Delivery: ${bill.deliveryDate}`);
+    }
+  }
   if (opts.pdfUrl) lines.push(`Invoice PDF: ${opts.pdfUrl}`);
   lines.push('', `Thank you! — ${business?.name ?? ''}`.trim());
   return lines.join('\n');

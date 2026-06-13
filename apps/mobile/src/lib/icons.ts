@@ -63,6 +63,7 @@ export const SYMBOLS = {
   open_in_full: 'open-in-full',
   image: 'image',
   picture_as_pdf: 'picture-as-pdf',
+  visibility: 'visibility',
   sell: 'sell',
   percent: 'percent',
   person_search: 'person-search',

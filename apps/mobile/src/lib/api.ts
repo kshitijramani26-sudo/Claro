@@ -22,6 +22,7 @@ import type {
   KhataTransaction,
   PaymentMethod,
   PeriodKey,
+  PrescriptionResult,
   Shop,
   StaffDetail,
   StaffMember,
@@ -36,15 +37,30 @@ interface WireBusiness {
   price_includes_tax: boolean; invoice_prefix: string; low_stock_default: number;
   email: string; phone: string;
 }
+interface WirePrescription {
+  id: string; business_id: string; customer_id: string; bill_id?: string | null;
+  date: string;
+  r_dist_sph: string; r_dist_cyl: string; r_dist_axis: number | null; r_dist_vn: string;
+  r_near_sph: string; r_near_cyl: string; r_near_axis: number | null; r_near_vn: string;
+  l_dist_sph: string; l_dist_cyl: string; l_dist_axis: number | null; l_dist_vn: string;
+  l_near_sph: string; l_near_cyl: string; l_near_axis: number | null; l_near_vn: string;
+  add_r: string; add_l: string; pd: string; lens_types: string[]; remarks: string;
+  created_at: string;
+}
 interface WireBill {
   id: string; invoice_no: string; gst_mode: 'gst' | 'non_gst'; tax_kind: 'intra' | 'inter' | 'none';
   subtotal_paise: number; discount_paise: number; taxable_paise: number; cgst_paise: number;
   sgst_paise: number; igst_paise: number; tax_total_paise: number; grand_total_paise: number;
-  payment_mode: 'CASH' | 'UPI' | 'CREDIT'; customer_name: string; created_at: string;
+  payment_mode: 'CASH' | 'UPI' | 'CREDIT'; customer_name: string; customer_phone?: string;
+  amount_received_paise?: number; balance_due_paise?: number; created_at: string;
   items: {
     name: string; qty: number; unit_price_paise: number; line_total_paise: number;
     hsn_code?: string; tax_rate_bps?: number; taxable_paise?: number; tax_paise?: number;
+    item_kind?: 'frame' | 'lens' | 'other';
   }[];
+  prescription?: WirePrescription | null;
+  order_status?: 'pending' | 'ready' | 'delivered';
+  delivery_date?: string | null;
 }
 
 function mapBusiness(w: WireBusiness): Business {
@@ -57,20 +73,38 @@ function mapBusiness(w: WireBusiness): Business {
   };
 }
 
+function mapPrescription(w: WirePrescription): PrescriptionResult {
+  return {
+    id: w.id, businessId: w.business_id, customerId: w.customer_id, billId: w.bill_id,
+    date: w.date,
+    rDistSph: w.r_dist_sph, rDistCyl: w.r_dist_cyl, rDistAxis: w.r_dist_axis, rDistVn: w.r_dist_vn,
+    rNearSph: w.r_near_sph, rNearCyl: w.r_near_cyl, rNearAxis: w.r_near_axis, rNearVn: w.r_near_vn,
+    lDistSph: w.l_dist_sph, lDistCyl: w.l_dist_cyl, lDistAxis: w.l_dist_axis, lDistVn: w.l_dist_vn,
+    lNearSph: w.l_near_sph, lNearCyl: w.l_near_cyl, lNearAxis: w.l_near_axis, lNearVn: w.l_near_vn,
+    addR: w.add_r, addL: w.add_l, pd: w.pd, lensTypes: w.lens_types, remarks: w.remarks,
+    createdAt: w.created_at,
+  };
+}
+
 function mapBill(w: WireBill): BillResult {
   return {
     id: w.id, invoiceNo: w.invoice_no, gstMode: w.gst_mode, taxKind: w.tax_kind,
     subtotal: r(w.subtotal_paise), discount: r(w.discount_paise), taxable: r(w.taxable_paise),
     cgst: r(w.cgst_paise), sgst: r(w.sgst_paise), igst: r(w.igst_paise),
     taxTotal: r(w.tax_total_paise), grandTotal: r(w.grand_total_paise),
-    paymentMode: w.payment_mode, customerName: w.customer_name,
+    paymentMode: w.payment_mode, customerName: w.customer_name, customerPhone: w.customer_phone ?? '',
+    amountReceived: r(w.amount_received_paise ?? 0), balanceDue: r(w.balance_due_paise ?? 0),
     date: new Date(w.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
     items: w.items.map((i) => ({
       name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.line_total_paise),
       hsnCode: i.hsn_code, taxRateBps: i.tax_rate_bps,
       taxable: i.taxable_paise != null ? r(i.taxable_paise) : undefined,
       taxPaise: i.tax_paise != null ? r(i.tax_paise) : undefined,
+      itemKind: i.item_kind,
     })),
+    prescription: w.prescription ? mapPrescription(w.prescription) : null,
+    orderStatus: w.order_status,
+    deliveryDate: w.delivery_date ? new Date(w.delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
   };
 }
 
@@ -80,7 +114,7 @@ function initials(name: string): string {
 
 export interface ConfirmBillInput {
   requestId: string;
-  items: { inventoryItemId: string | null; name: string; qty: number; priceRupees: number }[];
+  items: { inventoryItemId: string | null; name: string; qty: number; priceRupees: number; itemKind?: 'frame' | 'lens' | 'other' }[];
   paymentMode: 'CASH' | 'UPI' | 'CREDIT';
   customerName?: string;
   customerPhone?: string;
@@ -89,6 +123,12 @@ export interface ConfirmBillInput {
   gstMode?: 'gst' | 'non_gst' | null;
   paymentMethodId?: string | null;
   discountPaise?: number;
+  /** Advance / part payment (paymentMode CREDIT): amount paid now + how. */
+  amountReceivedPaise?: number;
+  receivedMode?: 'CASH' | 'UPI' | null;
+  prescription?: any | null;
+  orderStatus?: 'pending' | 'ready' | 'delivered';
+  deliveryDate?: string | null;
 }
 
 const realApi = {
@@ -193,8 +233,10 @@ const realApi = {
       json: { name: input.name, phone: input.phone, amount_paise: Math.round(input.amountRupees * 100), note: input.note },
     });
   },
-  async settleUp(customerId: string, amountRupees?: number): Promise<void> {
-    const json = amountRupees != null ? { amount_paise: Math.round(amountRupees * 100) } : {};
+  async settleUp(customerId: string, amountRupees?: number, mode?: 'CASH' | 'UPI'): Promise<void> {
+    const json: Record<string, unknown> = {};
+    if (amountRupees != null) json.amount_paise = Math.round(amountRupees * 100);
+    if (mode) json.mode = mode;
     await request(`/khata/${customerId}/settle`, { method: 'POST', json });
   },
   async getReminder(customerId: string): Promise<{ text: string; waUrl: string }> {
@@ -303,8 +345,11 @@ const realApi = {
       json: {
         request_id: input.requestId,
         items: input.items.map((i) => ({
-          inventory_item_id: i.inventoryItemId, name: i.name, qty: i.qty,
+          inventory_item_id: i.inventoryItemId,
+          name: i.name,
+          qty: i.qty,
           unit_price_paise: Math.round(i.priceRupees * 100),
+          item_kind: i.itemKind ?? 'other',
         })),
         payment_mode: input.paymentMode,
         customer_name: input.customerName ?? '',
@@ -314,6 +359,34 @@ const realApi = {
         gst_mode: input.gstMode ?? null,
         payment_method_id: input.paymentMethodId ?? null,
         discount_paise: Math.max(0, Math.round(input.discountPaise ?? 0)),
+        amount_received_paise: Math.max(0, Math.round(input.amountReceivedPaise ?? 0)),
+        received_mode: input.receivedMode ?? null,
+        prescription: input.prescription ? {
+          date: input.prescription.date,
+          r_dist_sph: input.prescription.rDistSph || '',
+          r_dist_cyl: input.prescription.rDistCyl || '',
+          r_dist_axis: input.prescription.rDistAxis ?? null,
+          r_dist_vn: input.prescription.rDistVn || '',
+          r_near_sph: input.prescription.rNearSph || '',
+          r_near_cyl: input.prescription.rNearCyl || '',
+          r_near_axis: input.prescription.rNearAxis ?? null,
+          r_near_vn: input.prescription.rNearVn || '',
+          l_dist_sph: input.prescription.lDistSph || '',
+          l_dist_cyl: input.prescription.lDistCyl || '',
+          l_dist_axis: input.prescription.lDistAxis ?? null,
+          l_dist_vn: input.prescription.lDistVn || '',
+          l_near_sph: input.prescription.lNearSph || '',
+          l_near_cyl: input.prescription.lNearCyl || '',
+          l_near_axis: input.prescription.lNearAxis ?? null,
+          l_near_vn: input.prescription.lNearVn || '',
+          add_r: input.prescription.addR || '',
+          add_l: input.prescription.addL || '',
+          pd: input.prescription.pd || '',
+          lens_types: input.prescription.lensTypes || [],
+          remarks: input.prescription.remarks || '',
+        } : null,
+        order_status: input.orderStatus,
+        delivery_date: input.deliveryDate,
       },
     });
     return mapBill(w);
@@ -370,6 +443,21 @@ const realApi = {
     const rows = await request<{ id: string; title: string; sub: string; amount_paise: number; kind: Activity['kind']; at: string; bill_id: string | null }[]>(`/customers/${customerId}/activity`);
     return rows.map((a) => ({ id: a.id, title: a.title, sub: a.sub, amount: r(a.amount_paise), kind: a.kind, time: timeAgo(a.at), billId: a.bill_id }));
   },
+  async updateBillStatus(billId: string, status: 'pending' | 'ready' | 'delivered'): Promise<BillResult> {
+    const w = await request<WireBill>(`/bills/${billId.replace(/^bill-/, '')}/status`, {
+      method: 'PATCH',
+      json: { order_status: status },
+    });
+    return mapBill(w);
+  },
+  async getLatestPrescription(customerId: string): Promise<PrescriptionResult | null> {
+    const p = await request<WirePrescription | null>(`/customers/${customerId}/prescriptions/latest`);
+    return p ? mapPrescription(p) : null;
+  },
+  async getPrescriptions(customerId: string): Promise<PrescriptionResult[]> {
+    const list = await request<WirePrescription[]>(`/customers/${customerId}/prescriptions`);
+    return list.map(mapPrescription);
+  },
 };
 
 // ── In-memory Mock state and implementation ──
@@ -408,6 +496,7 @@ let mPaymentMethods: MockMethod[] = [
 let invoiceCounter = 1043;
 let mBills: Record<string, BillResult> = {};
 const mSalaryPaid: Record<string, boolean> = {};
+let mPrescriptions: WirePrescription[] = [];
 
 const mockApi = {
   async getBusiness(): Promise<Business> {
@@ -536,7 +625,7 @@ const mockApi = {
 
     mSummary.pendingKhata += input.amountRupees;
   },
-  async settleUp(customerId: string, amountRupees?: number): Promise<void> {
+  async settleUp(customerId: string, amountRupees?: number, _mode?: 'CASH' | 'UPI'): Promise<void> {
     const customer = mKhata.find((c) => c.id === customerId);
     if (!customer) return;
     const settledAmount = amountRupees != null ? Math.min(customer.amount, Math.max(0, amountRupees)) : customer.amount;
@@ -729,6 +818,7 @@ const mockApi = {
         qty: it.qty,
         price: it.priceRupees,
         lineTotal,
+        itemKind: it.itemKind || 'other',
       };
     });
 
@@ -753,6 +843,62 @@ const mockApi = {
     }
 
     const grandTotal = taxable + taxTotal;
+    const received = input.paymentMode === 'CREDIT'
+      ? Math.min(grandTotal, Math.max(0, (input.amountReceivedPaise ?? 0) / 100))
+      : grandTotal;
+    const balanceDue = grandTotal - received;
+
+    let prescriptionResult: PrescriptionResult | null = null;
+    if (input.prescription) {
+      let customerId = 'c-default';
+      if (input.customerName) {
+        let customer = mKhata.find((c) => c.name.toLowerCase() === input.customerName!.toLowerCase());
+        if (!customer) {
+          customer = {
+            id: `k-${mKhata.length + 1}`,
+            name: input.customerName,
+            phone: input.customerPhone || '98765 00000',
+            amount: 0,
+            updated: 'Just now',
+            initials: initials(input.customerName),
+          };
+          mKhata.push(customer);
+        }
+        customerId = customer.id;
+      }
+      
+      const wireP: WirePrescription = {
+        id: `rx-${Date.now()}`,
+        business_id: 'biz-default',
+        customer_id: customerId,
+        bill_id: `bill-${Date.now()}`,
+        date: input.prescription.date || new Date().toISOString().split('T')[0],
+        r_dist_sph: input.prescription.rDistSph || '',
+        r_dist_cyl: input.prescription.rDistCyl || '',
+        r_dist_axis: input.prescription.rDistAxis ?? null,
+        r_dist_vn: input.prescription.rDistVn || '',
+        r_near_sph: input.prescription.rNearSph || '',
+        r_near_cyl: input.prescription.rNearCyl || '',
+        r_near_axis: input.prescription.rNearAxis ?? null,
+        r_near_vn: input.prescription.rNearVn || '',
+        l_dist_sph: input.prescription.lDistSph || '',
+        l_dist_cyl: input.prescription.lDistCyl || '',
+        l_dist_axis: input.prescription.lDistAxis ?? null,
+        l_dist_vn: input.prescription.lDistVn || '',
+        l_near_sph: input.prescription.lNearSph || '',
+        l_near_cyl: input.prescription.lNearCyl || '',
+        l_near_axis: input.prescription.lNearAxis ?? null,
+        l_near_vn: input.prescription.lNearVn || '',
+        add_r: input.prescription.addR || '',
+        add_l: input.prescription.addL || '',
+        pd: input.prescription.pd || '',
+        lens_types: input.prescription.lensTypes || [],
+        remarks: input.prescription.remarks || '',
+        created_at: new Date().toISOString(),
+      };
+      mPrescriptions.push(wireP);
+      prescriptionResult = mapPrescription(wireP);
+    }
 
     const billResult: BillResult = {
       id: `bill-${Date.now()}`,
@@ -769,8 +915,14 @@ const mockApi = {
       grandTotal,
       paymentMode: input.paymentMode,
       customerName: input.customerName || 'Walk-in Customer',
+      customerPhone: input.customerPhone || '',
+      amountReceived: received,
+      balanceDue,
       date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
       items,
+      prescription: prescriptionResult,
+      orderStatus: input.orderStatus || 'delivered',
+      deliveryDate: input.deliveryDate ? new Date(input.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
     };
 
     if (input.staffId) {
@@ -785,7 +937,7 @@ const mockApi = {
       }
     }
 
-    if (input.paymentMode === 'CREDIT' && input.customerName) {
+    if (input.paymentMode === 'CREDIT' && input.customerName && balanceDue > 0) {
       let customer = mKhata.find((c) => c.name.toLowerCase() === input.customerName!.toLowerCase());
       if (!customer) {
         customer = {
@@ -798,7 +950,7 @@ const mockApi = {
         };
         mKhata.push(customer);
       }
-      customer.amount += grandTotal;
+      customer.amount += balanceDue;
       customer.updated = 'Just now';
 
       if (!mKhataTimeline[customer.id]) {
@@ -808,11 +960,11 @@ const mockApi = {
         id: `t-${Date.now()}`,
         label: `Bill ${invoiceNo}`,
         date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
-        debit: grandTotal,
+        debit: balanceDue,
         credit: 0,
       });
 
-      mSummary.pendingKhata += grandTotal;
+      mSummary.pendingKhata += balanceDue;
     }
 
     mActivities.unshift({
@@ -842,7 +994,9 @@ const mockApi = {
       subtotal: act.amount, discount: 0, taxable: act.amount, cgst: 0, sgst: 0, igst: 0,
       taxTotal: 0, grandTotal: act.amount,
       paymentMode: act.sub.includes('Credit') ? 'CREDIT' : act.sub.includes('UPI') ? 'UPI' : 'CASH',
-      customerName: act.sub.split('·').pop()?.trim() ?? 'Walk-in', date: 'Today',
+      customerName: act.sub.split('·').pop()?.trim() ?? 'Walk-in', customerPhone: '',
+      amountReceived: act.sub.includes('Credit') ? 0 : act.amount, balanceDue: act.sub.includes('Credit') ? act.amount : 0,
+      date: 'Today',
       items: [{ name: act.title, qty: 1, price: act.amount, lineTotal: act.amount }],
     };
   },
@@ -931,6 +1085,24 @@ const mockApi = {
       time: t.date,
       billId: null,
     }));
+  },
+  async updateBillStatus(billId: string, status: 'pending' | 'ready' | 'delivered'): Promise<BillResult> {
+    const bill = mBills[billId];
+    if (bill) {
+      bill.orderStatus = status;
+    }
+    return bill || this.getBill(billId);
+  },
+  async getLatestPrescription(customerId: string): Promise<PrescriptionResult | null> {
+    const list = mPrescriptions.filter((p) => p.customer_id === customerId);
+    if (list.length === 0) return null;
+    const sorted = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return mapPrescription(sorted[0]);
+  },
+  async getPrescriptions(customerId: string): Promise<PrescriptionResult[]> {
+    const list = mPrescriptions.filter((p) => p.customer_id === customerId);
+    const sorted = [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
+    return sorted.map(mapPrescription);
   },
 };
 

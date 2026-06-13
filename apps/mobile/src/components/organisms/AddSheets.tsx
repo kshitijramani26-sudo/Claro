@@ -4,6 +4,7 @@ import { BottomSheet } from './BottomSheet';
 import { PrimaryButton } from '@/components/atoms/Button';
 import { Tap } from '@/components/atoms/Tap';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
+import { SegmentedControl } from '@/components/atoms/SegmentedControl';
 import { api } from '@/lib/api';
 import { formatINR } from '@/lib/format';
 import { Colors, Radius } from '@/theme/tokens';
@@ -201,6 +202,7 @@ export function SettleSheet() {
   const outstanding = target?.outstanding ?? 0;
   const [amount, setAmount] = useState(String(outstanding));
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
 
   const save = async () => {
     if (!target) return;
@@ -215,7 +217,7 @@ export function SettleSheet() {
     }
     setSaving(true);
     try {
-      await api.settleUp(target.id, amt);
+      await api.settleUp(target.id, amt, mode);
       refresh();
       flashToast('Settled ' + formatINR(amt));
       closeOverlay();
@@ -249,6 +251,20 @@ export function SettleSheet() {
             </Tap>
           ))}
         </View>
+        
+        <View style={{ gap: 6, marginTop: 4 }}>
+          <Text style={{ fontFamily: Font.semibold, fontSize: 13, color: Colors.textSecondary }}>Payment Method</Text>
+          <SegmentedControl
+            options={[
+              { key: 'CASH', label: 'Cash' },
+              { key: 'UPI', label: 'UPI' },
+            ]}
+            value={mode}
+            onChange={setMode}
+            accent={theme.accent}
+          />
+        </View>
+
         <PrimaryButton label={saving ? 'Settling…' : 'Record payment'} disabled={saving} onPress={save} style={{ marginTop: 8 }} />
       </View>
     </BottomSheet>

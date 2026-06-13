@@ -10,6 +10,16 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-14] — Antigravity — Full features implementation (Advance Payments, Eye Prescriptions, Order Status)
+- What changed:
+  - **Type & Compile Fixes**: Resolved TypeScript compile errors in `CreateBillOverlay.tsx`, `InvoiceCard.tsx`, and `CustomerDetailOverlay.tsx` by correcting non-existent `Colors.successBg` to `Colors.successTile`, and importing the `Tap` component from `@/components/atoms/Tap`.
+  - **Verification**: Ran `npx tsc --noEmit` and `npx expo-doctor` successfully (18/18 checks passed). Started the local Postgres instance on port 5544 and executed backend test suite (`pytest`) successfully with 37/37 tests passing green.
+- Why:
+  - Finalize and compile the frontend features for Advance/Partial Payments (Part B), Optical Prescription Cards/Recall (Part C), and Order Status Tracking (Part D).
+- Open items / next:
+  - Run physical-device validation via Expo Go.
+  - Deploy to Render/Supabase and update OTA update branch.
+
 ## [2026-06-12] — Claude Code (Opus 4.8) — Device-test bug fixes (500s, deletes, edits, cost-basis stock)
 - Reported from on-device (Android APK → live Render/Supabase) testing:
   - **#1/#2/#4 — 500 on bill-confirm / PDF / WhatsApp / add-credit (CRITICAL).** Root cause found via Supabase MCP postgres logs + reproduction: `ON CONFLICT (business_id, phone)` cannot infer the **partial** unique index `customers_biz_phone_idx (... WHERE phone IS NOT NULL)` → `42P10`. Any customer upsert *with a phone* 500'd. Local tests had only upserted customers without a phone, so it slipped through. Fix: add `WHERE phone IS NOT NULL` to the conflict target in `services/bills.py` and `routers/khata.py`. PDF/WhatsApp 500'd because they auto-confirm the bill first.

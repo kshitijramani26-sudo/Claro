@@ -4,6 +4,7 @@ import { Card } from '@/components/atoms/Card';
 import { Avatar } from '@/components/atoms/Avatar';
 import { IconTile } from '@/components/atoms/IconTile';
 import { Money } from '@/components/atoms/Money';
+import { Tap } from '@/components/atoms/Tap';
 import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { api } from '@/lib/api';
@@ -18,12 +19,14 @@ import { useAppStore } from '@/state/store';
 export function CustomerDetailOverlay() {
   const theme = usePageTheme('khata');
   const selCustomer = useAppStore((s) => s.selCustomer);
+  const business = useAppStore((s) => s.business);
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const openSettle = useAppStore((s) => s.openSettle);
   const flashToast = useAppStore((s) => s.flashToast);
 
   const { data: customers } = useApi(() => api.getKhata());
   const { data: timelineData } = useApi(() => api.getKhataTimeline(selCustomer), [selCustomer]);
+  const { data: rxHistory } = useApi(() => api.getPrescriptions(selCustomer ?? ''), [selCustomer]);
   const customer = (customers ?? []).find((k) => k.id === selCustomer);
   const timeline = timelineData ?? [];
 
@@ -122,6 +125,64 @@ export function CustomerDetailOverlay() {
               );
             })}
           </Card>
+        ) : null}
+
+        {/* Prescriptions History */}
+        {business?.industry === 'Optical' && rxHistory && rxHistory.length > 0 ? (
+          <View style={{ gap: 8, marginTop: 6 }}>
+            <Text style={{ fontFamily: Font.bold, fontSize: 15, color: Colors.textPrimary, marginLeft: 2 }}>
+              Prescription (Rx) History
+            </Text>
+            <Card style={{ paddingHorizontal: 18, paddingVertical: 6 }}>
+              {rxHistory.map((rx, i) => (
+                <View
+                  key={rx.id}
+                  style={{
+                    paddingVertical: 12,
+                    borderBottomWidth: i === rxHistory.length - 1 ? 0 : 1,
+                    borderBottomColor: Colors.divider,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>
+                      {rx.date ? new Date(rx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Rx Date'}
+                    </Text>
+                    {rx.billId && (
+                      <Tap
+                        onPress={() => useAppStore.getState().openInvoice(rx.billId!)}
+                        style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: theme.tile }}
+                      >
+                        <Text style={{ fontFamily: Font.bold, fontSize: 11, color: theme.accent }}>View Invoice</Text>
+                      </Tap>
+                    )}
+                  </View>
+                  
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    {rx.rDistSph || rx.rDistCyl ? (
+                      <Text style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary }}>
+                        R: <Text style={{ fontFamily: Font.bold, color: Colors.textPrimary }}>{rx.rDistSph || '0.00'}/{rx.rDistCyl || '0.00'}</Text>
+                      </Text>
+                    ) : null}
+                    {rx.lDistSph || rx.lDistCyl ? (
+                      <Text style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary }}>
+                        L: <Text style={{ fontFamily: Font.bold, color: Colors.textPrimary }}>{rx.lDistSph || '0.00'}/{rx.lDistCyl || '0.00'}</Text>
+                      </Text>
+                    ) : null}
+                    {rx.addR || rx.addL ? (
+                      <Text style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary }}>
+                        Add: <Text style={{ fontFamily: Font.bold, color: Colors.textPrimary }}>{rx.addR || rx.addL}</Text>
+                      </Text>
+                    ) : null}
+                  </View>
+                  {rx.remarks ? (
+                    <Text style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic' }}>
+                      Remarks: {rx.remarks}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </Card>
+          </View>
         ) : null}
       </ScrollView>
     </OverlayShell>
