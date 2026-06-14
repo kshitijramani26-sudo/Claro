@@ -43,6 +43,13 @@ export default function Billing() {
   const sum = emptyMode ? null : summary;
   const feedRows = emptyMode ? [] : feed;
 
+  const getGreeting = () => {
+    const hr = new Date().getHours();
+    if (hr >= 4 && hr < 12) return 'Good morning';
+    if (hr >= 12 && hr < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 130 }} showsVerticalScrollIndicator={false}>
@@ -58,7 +65,7 @@ export default function Billing() {
         >
           <View style={{ flex: 1, paddingRight: 12 }}>
             <Text style={{ fontFamily: Font.medium, fontSize: 14, color: Colors.textSecondary }}>
-              Good morning{ownerFirst ? `, ${ownerFirst}` : ''}
+              {getGreeting()}{ownerFirst ? `, ${ownerFirst}` : ''}
             </Text>
             <Text
               numberOfLines={1}

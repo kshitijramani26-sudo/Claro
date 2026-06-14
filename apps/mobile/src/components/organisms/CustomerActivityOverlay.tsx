@@ -9,6 +9,7 @@ import { Sym } from '@/components/atoms/Icon';
 import { PrimaryButton } from '@/components/atoms/Button';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { formatINR } from '@/lib/format';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
@@ -173,7 +174,7 @@ export function CustomerActivityOverlay() {
               <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.divider, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={{ fontFamily: Font.semibold, fontSize: 13, color: Colors.textSecondary }}>Outstanding Balance</Text>
                 <Text style={{ fontFamily: Font.bold, fontSize: 14, color: Colors.danger }}>
-                  ₹{(target.outstanding / 100).toFixed(2)}
+                  {formatINR(target.outstanding)}
                 </Text>
               </View>
             ) : null}

@@ -97,12 +97,12 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
               COALESCE((SELECT sum(grand_total_paise) FROM bills
                         WHERE business_id = $1 AND created_at >= $3 AND created_at < $4), 0) AS prev_sales2,
               -- payment mix (this period)
-              COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'CASH'), 0) AS pay_cash,
-              COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'UPI'), 0) AS pay_upi,
-              COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $2 AND payment_mode = 'CREDIT'), 0) AS pay_credit
+              COALESCE((SELECT sum(amount_paise) FROM payments
+                        WHERE business_id = $1 AND created_at >= $2 AND mode = 'CASH'), 0) AS pay_cash,
+              COALESCE((SELECT sum(amount_paise) FROM payments
+                        WHERE business_id = $1 AND created_at >= $2 AND mode = 'UPI'), 0) AS pay_upi,
+              COALESCE((SELECT sum(amount_paise) FROM khata_entries
+                        WHERE business_id = $1 AND created_at >= $2 AND type = 'credit'), 0) AS pay_credit
             """,
             biz.id, start, prev_start, prev_end,
         )

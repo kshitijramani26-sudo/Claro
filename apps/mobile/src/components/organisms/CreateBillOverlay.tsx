@@ -396,470 +396,474 @@ export function CreateBillOverlay() {
 
   // ---------- BUILD STEP ----------
   return (
-    <OverlayShell
-      title="Create Bill"
-      onClose={closeOverlay}
-      bg={theme.bg}
-      footer={
-        <View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+    <>
+      <OverlayShell
+        title="Create Bill"
+        onClose={closeOverlay}
+        bg={theme.bg}
+        footer={
+          rxModalOpen ? null : (
             <View>
-              <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textSecondary }}>
-                {discountRupees > 0 ? 'Payable' : 'Running total'}
-              </Text>
-              {discountRupees > 0 ? (
-                <Text style={[{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.success, marginTop: 1 }, tnum]}>
-                  {formatINR(total)} − {formatINR(discountRupees)} off
-                </Text>
-              ) : null}
-            </View>
-            <Money value={discountRupees > 0 ? totals.grand : total} style={[{ fontFamily: Font.extrabold, fontSize: 30, letterSpacing: -0.8, color: Colors.textPrimary }, tnum]} />
-          </View>
-          <PrimaryButton label="Review bill →" disabled={cb.items.length === 0} onPress={() => cbSet({ step: 'review' })} />
-        </View>
-      }
-    >
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 14 }} keyboardShouldPersistTaps="handled">
-        {/* Search catalog */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-            height: 50,
-            borderRadius: Radius.btn,
-            borderWidth: 1.5,
-            borderColor: searchFocused ? theme.accent : Colors.border,
-            backgroundColor: Colors.canvas,
-            paddingHorizontal: 14,
-          }}
-        >
-          <Sym name="search" size={21} color={Colors.textMuted} />
-          <TextInput
-            value={cb.search}
-            onChangeText={(t) => cbSet({ search: t })}
-            placeholder="Search items…"
-            placeholderTextColor={Colors.textMuted}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            style={{ flex: 1, fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}
-          />
-        </View>
-
-        {/* Catalog */}
-        <Card style={{ maxHeight: 184 }}>
-          <ScrollView nestedScrollEnabled style={{ paddingHorizontal: 18 }} keyboardShouldPersistTaps="handled">
-            {catalog.map((c, i) => (
-              <View
-                key={c.id}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingVertical: 12,
-                  borderBottomWidth: i === catalog.length - 1 ? 0 : 1,
-                  borderBottomColor: Colors.divider,
-                }}
-              >
-                <View style={{ flex: 1, paddingRight: 10 }}>
-                  <Text style={{ fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}>{c.name}</Text>
-                  <Money value={c.price} style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary, marginTop: 1 }} />
-                </View>
-                <Tap
-                  onPress={() => cbAddCatalogItem(c)}
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: Radius.tile,
-                    backgroundColor: theme.tile,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Sym name="add" size={20} color={theme.accent} />
-                </Tap>
-              </View>
-            ))}
-            {catalog.length === 0 ? (
-              <Text style={{ fontFamily: Font.medium, fontSize: 13, color: Colors.textMuted, paddingVertical: 16, textAlign: 'center' }}>
-                No items match your search
-              </Text>
-            ) : null}
-          </ScrollView>
-        </Card>
-
-        {/* Bill items */}
-        {cb.items.length > 0 ? (
-          <Card style={{ paddingHorizontal: 18 }}>
-            {cb.items.map((it, i) => (
-              <View
-                key={it.id}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 12,
-                  paddingVertical: 13,
-                  borderBottomWidth: i === cb.items.length - 1 ? 0 : 1,
-                  borderBottomColor: Colors.divider,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: Colors.textPrimary }} numberOfLines={1}>
-                    {it.name}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View>
+                  <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textSecondary }}>
+                    {discountRupees > 0 ? 'Payable' : 'Running total'}
                   </Text>
-                  <Money value={it.price} prefix="" style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary, marginTop: 1 }} />
-                  {business?.industry === 'Optical' && (
-                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 5 }}>
-                      {(['frame', 'lens', 'other'] as const).map((k) => {
-                        const active = (it.itemKind || 'other') === k;
-                        return (
-                          <Tap
-                            key={k}
-                            onPress={() => {
-                              cbSetItemKind(it.id, k);
-                              if (k === 'lens') {
-                                setRxModalOpen(true);
-                              }
-                            }}
-                            style={{
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              borderRadius: 6,
-                              backgroundColor: active ? theme.tile : Colors.divider,
-                            }}
-                          >
-                            <Text style={{ fontFamily: Font.bold, fontSize: 10, color: active ? theme.accent : Colors.textSecondary, textTransform: 'capitalize' }}>
-                              {k === 'lens' ? 'Lens/Glasses' : k}
-                            </Text>
-                          </Tap>
-                        );
-                      })}
-                    </View>
-                  )}
+                  {discountRupees > 0 ? (
+                    <Text style={[{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.success, marginTop: 1 }, tnum]}>
+                      {formatINR(total)} − {formatINR(discountRupees)} off
+                    </Text>
+                  ) : null}
                 </View>
-                <Stepper qty={it.qty} onInc={() => cbInc(it.id)} onDec={() => cbDec(it.id)} />
-                <Money value={it.price * it.qty} style={[{ fontFamily: Font.extrabold, fontSize: 15, color: Colors.textPrimary, minWidth: 64, textAlign: 'right' }, tnum]} />
+                <Money value={discountRupees > 0 ? totals.grand : total} style={[{ fontFamily: Font.extrabold, fontSize: 30, letterSpacing: -0.8, color: Colors.textPrimary }, tnum]} />
               </View>
-            ))}
-          </Card>
-        ) : (
-          <Card style={{ padding: 22, alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
-            <Sym name="shopping_cart" size={22} color={Colors.textMuted} />
-            <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textMuted }}>
-              No items yet — search above or add a custom item
-            </Text>
-          </Card>
-        )}
-
-        {/* Add custom item */}
-        <Card pad={18}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Sym name="edit_note" size={20} color={theme.accent} />
-            <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Add a custom item</Text>
-          </View>
-          <SheetField placeholder="Item name" value={cb.nName} onChangeText={(t) => cbSet({ nName: t })} accent={theme.accent} />
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-            <SheetField placeholder="Quantity" value={cb.nQty} onChangeText={(t) => cbSet({ nQty: t })} accent={theme.accent} keyboardType="number-pad" style={{ flex: 1 }} />
-            <SheetField placeholder="Unit price (₹)" value={cb.nPrice} onChangeText={(t) => cbSet({ nPrice: t })} accent={theme.accent} keyboardType="number-pad" style={{ flex: 1 }} />
-          </View>
-          <Tap
-            onPress={cbAddCustomItem}
+              <PrimaryButton label="Review bill →" disabled={cb.items.length === 0} onPress={() => cbSet({ step: 'review' })} />
+            </View>
+          )
+        }
+      >
+        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 30, gap: 14 }} keyboardShouldPersistTaps="handled">
+          {/* Search catalog */}
+          <View
             style={{
-              height: 46,
-              borderRadius: Radius.btnSm,
-              backgroundColor: theme.tile,
               flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: 7,
-              marginTop: 12,
+              gap: 10,
+              height: 50,
+              borderRadius: Radius.btn,
+              borderWidth: 1.5,
+              borderColor: searchFocused ? theme.accent : Colors.border,
+              backgroundColor: Colors.canvas,
+              paddingHorizontal: 14,
             }}
           >
-            <Sym name="add_circle" size={21} color={theme.accent} />
-            <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: theme.accent }}>Add to bill</Text>
-          </Tap>
-        </Card>
-
-        {/* Discount — flat ₹ or % of subtotal, applied to the whole bill (pre-tax) */}
-        {cb.items.length > 0 ? (
-          <Card pad={18} style={{ gap: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Sym name="sell" size={20} color={theme.accent} />
-                <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Add discount</Text>
-              </View>
-              <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
-                {(['amount', 'percent'] as const).map((kind) => {
-                  const active = cb.discountKind === kind;
-                  return (
-                    <Tap
-                      key={kind}
-                      onPress={() => cbSet({ discountKind: kind })}
-                      style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.chip, backgroundColor: active ? Colors.canvas : 'transparent' }}
-                    >
-                      <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
-                        {kind === 'amount' ? '₹' : '%'}
-                      </Text>
-                    </Tap>
-                  );
-                })}
-              </View>
-            </View>
+            <Sym name="search" size={21} color={Colors.textMuted} />
             <TextInput
-              value={cb.discountInput}
-              onChangeText={(t) => cbSet({ discountInput: t })}
-              placeholder={cb.discountKind === 'percent' ? 'Discount % (e.g. 10)' : 'Discount amount (₹)'}
+              value={cb.search}
+              onChangeText={(t) => cbSet({ search: t })}
+              placeholder="Search items…"
               placeholderTextColor={Colors.textMuted}
-              keyboardType="number-pad"
-              onFocus={() => setDiscountFocused(true)}
-              onBlur={() => setDiscountFocused(false)}
-              style={{
-                height: 46, borderRadius: Radius.btnSm, borderWidth: 1.5,
-                borderColor: discountFocused ? theme.accent : Colors.border, backgroundColor: Colors.inputBg,
-                paddingHorizontal: 14, fontFamily: Font.semibold, fontSize: 14, color: Colors.textPrimary,
-              }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              style={{ flex: 1, fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}
             />
-            {discountRupees > 0 ? (
+          </View>
+
+          {/* Catalog */}
+          <Card style={{ maxHeight: 184 }}>
+            <ScrollView nestedScrollEnabled style={{ paddingHorizontal: 18 }} keyboardShouldPersistTaps="handled">
+              {catalog.map((c, i) => (
+                <View
+                  key={c.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 12,
+                    borderBottomWidth: i === catalog.length - 1 ? 0 : 1,
+                    borderBottomColor: Colors.divider,
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={{ fontFamily: Font.semibold, fontSize: 14.5, color: Colors.textPrimary }}>{c.name}</Text>
+                    <Money value={c.price} style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary, marginTop: 1 }} />
+                  </View>
+                  <Tap
+                    onPress={() => cbAddCatalogItem(c)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: Radius.tile,
+                      backgroundColor: theme.tile,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Sym name="add" size={20} color={theme.accent} />
+                  </Tap>
+                </View>
+              ))}
+              {catalog.length === 0 ? (
+                <Text style={{ fontFamily: Font.medium, fontSize: 13, color: Colors.textMuted, paddingVertical: 16, textAlign: 'center' }}>
+                  No items match your search
+                </Text>
+              ) : null}
+            </ScrollView>
+          </Card>
+
+          {/* Bill items */}
+          {cb.items.length > 0 ? (
+            <Card style={{ paddingHorizontal: 18 }}>
+              {cb.items.map((it, i) => (
+                <View
+                  key={it.id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                    paddingVertical: 13,
+                    borderBottomWidth: i === cb.items.length - 1 ? 0 : 1,
+                    borderBottomColor: Colors.divider,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: Colors.textPrimary }} numberOfLines={1}>
+                      {it.name}
+                    </Text>
+                    <Money value={it.price} prefix="" style={{ fontFamily: Font.medium, fontSize: 12, color: Colors.textSecondary, marginTop: 1 }} />
+                    {business?.industry === 'Optical' && (
+                      <View style={{ flexDirection: 'row', gap: 4, marginTop: 5 }}>
+                        {(['frame', 'lens', 'other'] as const).map((k) => {
+                          const active = (it.itemKind || 'other') === k;
+                          return (
+                            <Tap
+                              key={k}
+                              onPress={() => {
+                                cbSetItemKind(it.id, k);
+                                if (k === 'lens') {
+                                  setRxModalOpen(true);
+                                }
+                              }}
+                              style={{
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 6,
+                                backgroundColor: active ? theme.tile : Colors.divider,
+                              }}
+                            >
+                              <Text style={{ fontFamily: Font.bold, fontSize: 10, color: active ? theme.accent : Colors.textSecondary, textTransform: 'capitalize' }}>
+                                {k === 'lens' ? 'Lens/Glasses' : k}
+                              </Text>
+                            </Tap>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                  <Stepper qty={it.qty} onInc={() => cbInc(it.id)} onDec={() => cbDec(it.id)} />
+                  <Money value={it.price * it.qty} style={[{ fontFamily: Font.extrabold, fontSize: 15, color: Colors.textPrimary, minWidth: 64, textAlign: 'right' }, tnum]} />
+                </View>
+              ))}
+            </Card>
+          ) : (
+            <Card style={{ padding: 22, alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'center' }}>
+              <Sym name="shopping_cart" size={22} color={Colors.textMuted} />
+              <Text style={{ fontFamily: Font.semibold, fontSize: 13.5, color: Colors.textMuted }}>
+                No items yet — search above or add a custom item
+              </Text>
+            </Card>
+          )}
+
+          {/* Add custom item */}
+          <Card pad={18}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <Sym name="edit_note" size={20} color={theme.accent} />
+              <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Add a custom item</Text>
+            </View>
+            <SheetField placeholder="Item name" value={cb.nName} onChangeText={(t) => cbSet({ nName: t })} accent={theme.accent} />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <SheetField placeholder="Quantity" value={cb.nQty} onChangeText={(t) => cbSet({ nQty: t })} accent={theme.accent} keyboardType="number-pad" style={{ flex: 1 }} />
+              <SheetField placeholder="Unit price (₹)" value={cb.nPrice} onChangeText={(t) => cbSet({ nPrice: t })} accent={theme.accent} keyboardType="number-pad" style={{ flex: 1 }} />
+            </View>
+            <Tap
+              onPress={cbAddCustomItem}
+              style={{
+                height: 46,
+                borderRadius: Radius.btnSm,
+                backgroundColor: theme.tile,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 7,
+                marginTop: 12,
+              }}
+            >
+              <Sym name="add_circle" size={21} color={theme.accent} />
+              <Text style={{ fontFamily: Font.bold, fontSize: 14.5, color: theme.accent }}>Add to bill</Text>
+            </Tap>
+          </Card>
+
+          {/* Discount — flat ₹ or % of subtotal, applied to the whole bill (pre-tax) */}
+          {cb.items.length > 0 ? (
+            <Card pad={18} style={{ gap: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.success }}>
-                  You save {formatINR(discountRupees)}
-                </Text>
-                <Text style={[{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary }, tnum]}>
-                  Payable {formatINR(totals.grand)}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Sym name="sell" size={20} color={theme.accent} />
+                  <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Add discount</Text>
+                </View>
+                <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
+                  {(['amount', 'percent'] as const).map((kind) => {
+                    const active = cb.discountKind === kind;
+                    return (
+                      <Tap
+                        key={kind}
+                        onPress={() => cbSet({ discountKind: kind })}
+                        style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.chip, backgroundColor: active ? Colors.canvas : 'transparent' }}
+                      >
+                        <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
+                          {kind === 'amount' ? '₹' : '%'}
+                        </Text>
+                      </Tap>
+                    );
+                  })}
+                </View>
               </View>
-            ) : null}
-          </Card>
-        ) : null}
-
-        {/* GST mode (GST-registered shops only) + place of supply */}
-        {gstRegistered ? (
-          <Card pad={18} style={{ gap: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Bill type</Text>
-              <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
-                {(['gst', 'non_gst'] as const).map((mode) => {
-                  const active = gstMode === mode;
-                  return (
-                    <Tap
-                      key={mode}
-                      onPress={() => cbSet({ gstMode: mode })}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingVertical: 7,
-                        borderRadius: Radius.chip,
-                        backgroundColor: active ? Colors.canvas : 'transparent',
-                      }}
-                    >
-                      <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
-                        {mode === 'gst' ? 'GST' : 'Non-GST'}
-                      </Text>
-                    </Tap>
-                  );
-                })}
-              </View>
-            </View>
-            {gstMode === 'gst' ? (
-              <Select
-                label="Customer state (place of supply)"
-                value={stateName(supplyState)}
-                options={GST_STATES.map((s) => s.name)}
-                onChange={(name) => cbSet({ custState: GST_STATES.find((s) => s.name === name)?.code ?? '' })}
-                placeholder={stateName(bizState)}
-                accent={theme.accent}
-                height={48}
-                radius={Radius.tile}
+              <TextInput
+                value={cb.discountInput}
+                onChangeText={(t) => cbSet({ discountInput: t })}
+                placeholder={cb.discountKind === 'percent' ? 'Discount % (e.g. 10)' : 'Discount amount (₹)'}
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="number-pad"
+                onFocus={() => setDiscountFocused(true)}
+                onBlur={() => setDiscountFocused(false)}
+                style={{
+                  height: 46, borderRadius: Radius.btnSm, borderWidth: 1.5,
+                  borderColor: discountFocused ? theme.accent : Colors.border, backgroundColor: Colors.inputBg,
+                  paddingHorizontal: 14, fontFamily: Font.semibold, fontSize: 14, color: Colors.textPrimary,
+                }}
               />
-            ) : null}
-          </Card>
-        ) : null}
+              {discountRupees > 0 ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.success }}>
+                    You save {formatINR(discountRupees)}
+                  </Text>
+                  <Text style={[{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary }, tnum]}>
+                    Payable {formatINR(totals.grand)}
+                  </Text>
+                </View>
+              ) : null}
+            </Card>
+          ) : null}
 
-        {/* Specs order details */}
-        {business?.industry === 'Optical' && (
-          <Card pad={18} style={{ gap: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Sym name="visibility" size={20} color={theme.accent} />
-                <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Specs Order Details</Text>
+          {/* GST mode (GST-registered shops only) + place of supply */}
+          {gstRegistered ? (
+            <Card pad={18} style={{ gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Bill type</Text>
+                <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
+                  {(['gst', 'non_gst'] as const).map((mode) => {
+                    const active = gstMode === mode;
+                    return (
+                      <Tap
+                        key={mode}
+                        onPress={() => cbSet({ gstMode: mode })}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: Radius.chip,
+                          backgroundColor: active ? Colors.canvas : 'transparent',
+                        }}
+                      >
+                        <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
+                          {mode === 'gst' ? 'GST' : 'Non-GST'}
+                        </Text>
+                      </Tap>
+                    );
+                  })}
+                </View>
               </View>
-              <Tap
-                onPress={() => setRxModalOpen(true)}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: Radius.chip,
-                  backgroundColor: prescription ? Colors.successTile : theme.tile,
-                }}
-              >
-                <Text style={{ fontFamily: Font.bold, fontSize: 12, color: prescription ? Colors.success : theme.accent }}>
-                  {prescription ? 'Edit Rx (Attached)' : '+ Add Rx Power'}
-                </Text>
-              </Tap>
-            </View>
-            
-            {lastRxInfo && !prescription && (
-              <Tap
-                onPress={() => {
-                  const rx = lastRxInfo.rx;
-                  const payload = {
-                    date: new Date().toISOString().split('T')[0],
-                    rDistSph: rx.rDistSph || '',
-                    rDistCyl: rx.rDistCyl || '',
-                    rDistAxis: rx.rDistAxis ?? null,
-                    rDistVn: rx.rDistVn || '',
-                    rNearSph: rx.rNearSph || '',
-                    rNearCyl: rx.rNearCyl || '',
-                    rNearAxis: rx.rNearAxis ?? null,
-                    rNearVn: rx.rNearVn || '',
-                    lDistSph: rx.lDistSph || '',
-                    lDistCyl: rx.lDistCyl || '',
-                    lDistAxis: rx.lDistAxis ?? null,
-                    lDistVn: rx.lDistVn || '',
-                    lNearSph: rx.lNearSph || '',
-                    lNearCyl: rx.lNearCyl || '',
-                    lNearAxis: rx.lNearAxis ?? null,
-                    lNearVn: rx.lNearVn || '',
-                    addR: rx.addR || '',
-                    addL: rx.addL || '',
-                    pd: rx.pd || '',
-                    lensTypes: rx.lensTypes || [],
-                    remarks: rx.remarks || '',
-                  };
-                  setPrescription(payload);
-                  flashToast('Previous Rx attached to bill');
-                }}
-                style={{
-                  padding: 12, borderRadius: Radius.tile, borderWidth: 1.5, borderColor: Colors.success,
-                  backgroundColor: Colors.successTile, alignItems: 'center', justifyContent: 'center', marginTop: 4
-                }}
-              >
-                <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.success }}>
-                  Use last Rx ({new Date(lastRxInfo.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
-                </Text>
-              </Tap>
-            )}
+              {gstMode === 'gst' ? (
+                <Select
+                  label="Customer state (place of supply)"
+                  value={stateName(supplyState)}
+                  options={GST_STATES.map((s) => s.name)}
+                  onChange={(name) => cbSet({ custState: GST_STATES.find((s) => s.name === name)?.code ?? '' })}
+                  placeholder={stateName(bizState)}
+                  accent={theme.accent}
+                  height={48}
+                  radius={Radius.tile}
+                />
+              ) : null}
+            </Card>
+          ) : null}
 
-            <View style={{ gap: 10, marginTop: 4 }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+          {/* Specs order details */}
+          {business?.industry === 'Optical' && (
+            <Card pad={18} style={{ gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Sym name="visibility" size={20} color={theme.accent} />
+                  <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Specs Order Details</Text>
+                </View>
+                <Tap
+                  onPress={() => setRxModalOpen(true)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: Radius.chip,
+                    backgroundColor: prescription ? Colors.successTile : theme.tile,
+                  }}
+                >
+                  <Text style={{ fontFamily: Font.bold, fontSize: 12, color: prescription ? Colors.success : theme.accent }}>
+                    {prescription ? 'Edit Rx (Attached)' : '+ Add Rx Power'}
+                  </Text>
+                </Tap>
+              </View>
+              
+              {lastRxInfo && !prescription && (
+                <Tap
+                  onPress={() => {
+                    const rx = lastRxInfo.rx;
+                    const payload = {
+                      date: new Date().toISOString().split('T')[0],
+                      rDistSph: rx.rDistSph || '',
+                      rDistCyl: rx.rDistCyl || '',
+                      rDistAxis: rx.rDistAxis ?? null,
+                      rDistVn: rx.rDistVn || '',
+                      rNearSph: rx.rNearSph || '',
+                      rNearCyl: rx.rNearCyl || '',
+                      rNearAxis: rx.rNearAxis ?? null,
+                      rNearVn: rx.rNearVn || '',
+                      lDistSph: rx.lDistSph || '',
+                      lDistCyl: rx.lDistCyl || '',
+                      lDistAxis: rx.lDistAxis ?? null,
+                      lDistVn: rx.lDistVn || '',
+                      lNearSph: rx.lNearSph || '',
+                      lNearCyl: rx.lNearCyl || '',
+                      lNearAxis: rx.lNearAxis ?? null,
+                      lNearVn: rx.lNearVn || '',
+                      addR: rx.addR || '',
+                      addL: rx.addL || '',
+                      pd: rx.pd || '',
+                      lensTypes: rx.lensTypes || [],
+                      remarks: rx.remarks || '',
+                    };
+                    setPrescription(payload);
+                    flashToast('Previous Rx attached to bill');
+                  }}
+                  style={{
+                    padding: 12, borderRadius: Radius.tile, borderWidth: 1.5, borderColor: Colors.success,
+                    backgroundColor: Colors.successTile, alignItems: 'center', justifyContent: 'center', marginTop: 4
+                  }}
+                >
+                  <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.success }}>
+                    Use last Rx ({new Date(lastRxInfo.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })})
+                  </Text>
+                </Tap>
+              )}
+
+              <View style={{ gap: 10, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Order Status</Text>
+                    <SegmentedControl
+                      options={[
+                        { key: 'pending', label: 'Pending' },
+                        { key: 'ready', label: 'Ready' },
+                        { key: 'delivered', label: 'Delivered' },
+                      ]}
+                      value={orderStatus}
+                      onChange={(val) => setOrderStatus(val as any)}
+                      accent={theme.accent}
+                    />
+                  </View>
+                </View>
+
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Order Status</Text>
-                  <SegmentedControl
-                    options={[
-                      { key: 'pending', label: 'Pending' },
-                      { key: 'ready', label: 'Ready' },
-                      { key: 'delivered', label: 'Delivered' },
-                    ]}
-                    value={orderStatus}
-                    onChange={(val) => setOrderStatus(val as any)}
+                  <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Delivery Date (optional)</Text>
+                  <SheetField
+                    placeholder="YYYY-MM-DD (e.g. 2026-06-18)"
+                    value={deliveryDate}
+                    onChangeText={(t) => {
+                      setDeliveryDate(t);
+                      if (t.trim() && orderStatus === 'delivered') {
+                        setOrderStatus('pending');
+                      }
+                    }}
                     accent={theme.accent}
+                    height={44}
                   />
                 </View>
               </View>
+            </Card>
+          )}
 
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Delivery Date (optional)</Text>
-                <SheetField
-                  placeholder="YYYY-MM-DD (e.g. 2026-06-18)"
-                  value={deliveryDate}
-                  onChangeText={(t) => {
-                    setDeliveryDate(t);
-                    if (t.trim() && orderStatus === 'delivered') {
-                      setOrderStatus('pending');
-                    }
-                  }}
-                  accent={theme.accent}
-                  height={44}
-                />
+          {/* Attribution / customer / payment */}
+          <Card pad={18} style={{ gap: 16 }}>
+            <Select
+              label="Attribute to staff"
+              value={cb.staff}
+              options={staffNames}
+              onChange={(v) => cbSet({ staff: v })}
+              placeholder="Select staff member"
+              accent={Colors.warning}
+              height={48}
+              radius={Radius.tile}
+            />
+            <SheetField placeholder="Customer name (optional)" value={cb.custName} onChangeText={(t) => cbSet({ custName: t })} accent={theme.accent} height={48} />
+            <ContactSuggest query={cb.custName} accent={theme.accent} onPick={(h) => cbSet({ custName: h.name, custPhone: h.phone })} />
+            <SheetField placeholder="Customer phone (optional)" value={cb.custPhone} onChangeText={(t) => cbSet({ custPhone: t })} accent={theme.accent} height={48} keyboardType="phone-pad" />
+            {/* Full payment vs advance / part payment */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Payment</Text>
+              <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
+                {(['full', 'advance'] as const).map((k) => {
+                  const active = cb.payKind === k;
+                  return (
+                    <Tap key={k} onPress={() => cbSet({ payKind: k })} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.chip, backgroundColor: active ? Colors.canvas : 'transparent' }}>
+                      <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
+                        {k === 'full' ? 'Full payment' : 'Advance / Part'}
+                      </Text>
+                    </Tap>
+                  );
+                })}
               </View>
             </View>
-          </Card>
-        )}
 
-        {/* Attribution / customer / payment */}
-        <Card pad={18} style={{ gap: 16 }}>
-          <Select
-            label="Attribute to staff"
-            value={cb.staff}
-            options={staffNames}
-            onChange={(v) => cbSet({ staff: v })}
-            placeholder="Select staff member"
-            accent={Colors.warning}
-            height={48}
-            radius={Radius.tile}
-          />
-          <SheetField placeholder="Customer name (optional)" value={cb.custName} onChangeText={(t) => cbSet({ custName: t })} accent={theme.accent} height={48} />
-          <ContactSuggest query={cb.custName} accent={theme.accent} onPick={(h) => cbSet({ custName: h.name, custPhone: h.phone })} />
-          <SheetField placeholder="Customer phone (optional)" value={cb.custPhone} onChangeText={(t) => cbSet({ custPhone: t })} accent={theme.accent} height={48} keyboardType="phone-pad" />
-          {/* Full payment vs advance / part payment */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontFamily: Font.bold, fontSize: 13.5, color: Colors.textPrimary }}>Payment</Text>
-            <View style={{ flexDirection: 'row', backgroundColor: Colors.segmentBg, borderRadius: Radius.tile, padding: 3 }}>
-              {(['full', 'advance'] as const).map((k) => {
-                const active = cb.payKind === k;
-                return (
-                  <Tap key={k} onPress={() => cbSet({ payKind: k })} style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.chip, backgroundColor: active ? Colors.canvas : 'transparent' }}>
-                    <Text style={{ fontFamily: Font.bold, fontSize: 12.5, color: active ? theme.accent : Colors.textSecondary }}>
-                      {k === 'full' ? 'Full payment' : 'Advance / Part'}
-                    </Text>
-                  </Tap>
-                );
-              })}
-            </View>
-          </View>
-
-          {!isAdvance ? (
-            <View style={{ flexDirection: 'row', gap: 9 }}>
-              {PAY_MODES.map(({ mode, icon }) => {
-                const active = cb.payMode === mode;
-                return (
-                  <Tap
-                    key={mode}
-                    onPress={() => cbSet({ payMode: mode })}
-                    style={{
-                      flex: 1, height: 50, borderRadius: Radius.tile, borderWidth: 1.5,
-                      borderColor: active ? theme.accent : Colors.border, backgroundColor: active ? theme.tile : Colors.canvas,
-                      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    }}
-                  >
-                    <Sym name={icon} size={18} color={active ? theme.accent : Colors.textSecondary} />
-                    <Text style={{ fontFamily: Font.bold, fontSize: 13, color: active ? theme.accent : Colors.textSecondary }}>{mode}</Text>
-                  </Tap>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={{ gap: 12 }}>
-              <SheetField placeholder="Amount received now (₹)" value={cb.receivedInput} onChangeText={(t) => cbSet({ receivedInput: t })} accent={theme.accent} height={48} keyboardType="number-pad" />
+            {!isAdvance ? (
               <View style={{ flexDirection: 'row', gap: 9 }}>
-                {(['Cash', 'UPI'] as const).map((m) => {
-                  const active = cb.receivedMode === m;
+                {PAY_MODES.map(({ mode, icon }) => {
+                  const active = cb.payMode === mode;
                   return (
                     <Tap
-                      key={m}
-                      onPress={() => cbSet({ receivedMode: m })}
+                      key={mode}
+                      onPress={() => cbSet({ payMode: mode })}
                       style={{
-                        flex: 1, height: 46, borderRadius: Radius.tile, borderWidth: 1.5,
+                        flex: 1, height: 50, borderRadius: Radius.tile, borderWidth: 1.5,
                         borderColor: active ? theme.accent : Colors.border, backgroundColor: active ? theme.tile : Colors.canvas,
                         flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                       }}
                     >
-                      <Sym name={m === 'Cash' ? 'payments' : 'qr_code_2'} size={17} color={active ? theme.accent : Colors.textSecondary} />
-                      <Text style={{ fontFamily: Font.bold, fontSize: 13, color: active ? theme.accent : Colors.textSecondary }}>{`Received in ${m}`}</Text>
+                      <Sym name={icon} size={18} color={active ? theme.accent : Colors.textSecondary} />
+                      <Text style={{ fontFamily: Font.bold, fontSize: 13, color: active ? theme.accent : Colors.textSecondary }}>{mode}</Text>
                     </Tap>
                   );
                 })}
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
-                <Text style={{ fontFamily: Font.semibold, fontSize: 13, color: Colors.textSecondary }}>Balance due (to Khata)</Text>
-                <Money value={balanceDueRupees} style={[{ fontFamily: Font.extrabold, fontSize: 18, color: Colors.danger }, tnum]} />
+            ) : (
+              <View style={{ gap: 12 }}>
+                <SheetField placeholder="Amount received now (₹)" value={cb.receivedInput} onChangeText={(t) => cbSet({ receivedInput: t })} accent={theme.accent} height={48} keyboardType="number-pad" />
+                <View style={{ flexDirection: 'row', gap: 9 }}>
+                  {(['Cash', 'UPI'] as const).map((m) => {
+                    const active = cb.receivedMode === m;
+                    return (
+                      <Tap
+                        key={m}
+                        onPress={() => cbSet({ receivedMode: m })}
+                        style={{
+                          flex: 1, height: 46, borderRadius: Radius.tile, borderWidth: 1.5,
+                          borderColor: active ? theme.accent : Colors.border, backgroundColor: active ? theme.tile : Colors.canvas,
+                          flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        <Sym name={m === 'Cash' ? 'payments' : 'qr_code_2'} size={17} color={active ? theme.accent : Colors.textSecondary} />
+                        <Text style={{ fontFamily: Font.bold, fontSize: 13, color: active ? theme.accent : Colors.textSecondary }}>{`Received in ${m}`}</Text>
+                      </Tap>
+                    );
+                  })}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+                  <Text style={{ fontFamily: Font.semibold, fontSize: 13, color: Colors.textSecondary }}>Balance due (to Khata)</Text>
+                  <Money value={balanceDueRupees} style={[{ fontFamily: Font.extrabold, fontSize: 18, color: Colors.danger }, tnum]} />
+                </View>
+                <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted }}>
+                  The balance is added to the customer's Khata. Collect it later from their page.
+                </Text>
               </View>
-              <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted }}>
-                The balance is added to the customer's Khata. Collect it later from their page.
-              </Text>
-            </View>
-          )}
-        </Card>
-      </ScrollView>
+            )}
+          </Card>
+        </ScrollView>
+      </OverlayShell>
       {rxModalOpen && (
         <OverlayShell
           title="Eye Prescription (Rx)"
@@ -1090,7 +1094,7 @@ export function CreateBillOverlay() {
           </ScrollView>
         </OverlayShell>
       )}
-    </OverlayShell>
+    </>
   );
 }
 

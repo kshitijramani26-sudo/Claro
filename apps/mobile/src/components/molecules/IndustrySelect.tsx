@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Sym } from '@/components/atoms/Icon';
 import { INDUSTRY_GROUPS } from '@/data/industries';
 import { Colors, Radius } from '@/theme/tokens';
@@ -55,61 +55,66 @@ export function IndustrySelect({ value, onChange, accent, placeholder = 'Select 
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => { setOpen(false); setQuery(''); }}>
         <Pressable style={{ flex: 1, backgroundColor: Colors.scrim }} onPress={() => { setOpen(false); setQuery(''); }} />
-        <View
-          style={{
-            backgroundColor: Colors.canvas, borderTopLeftRadius: Radius.sheet, borderTopRightRadius: Radius.sheet,
-            paddingTop: 10, paddingBottom: 26, paddingHorizontal: 24, maxHeight: '82%',
-          }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ width: '100%' }}
         >
-          <View style={{ width: 40, height: 5, borderRadius: Radius.pill, backgroundColor: Colors.dashed, alignSelf: 'center', marginBottom: 14 }} />
-          {/* Search */}
           <View
             style={{
-              flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: Radius.btn, borderWidth: 1.5,
-              borderColor: query ? accent : Colors.border, backgroundColor: Colors.inputBg, paddingHorizontal: 14, marginBottom: 12,
+              backgroundColor: Colors.canvas, borderTopLeftRadius: Radius.sheet, borderTopRightRadius: Radius.sheet,
+              paddingTop: 10, paddingBottom: 26, paddingHorizontal: 24, maxHeight: '82%',
             }}
           >
-            <Sym name="search" size={20} color={Colors.textMuted} />
-            <TextInput
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search your business type…"
-              placeholderTextColor={Colors.textMuted}
-              autoFocus
-              style={{ flex: 1, fontFamily: Font.semibold, fontSize: 15, color: Colors.textPrimary }}
-            />
-            {query ? (
-              <Pressable onPress={() => setQuery('')} hitSlop={8}><Sym name="close" size={18} color={Colors.textMuted} /></Pressable>
-            ) : null}
-          </View>
+            <View style={{ width: 40, height: 5, borderRadius: Radius.pill, backgroundColor: Colors.dashed, alignSelf: 'center', marginBottom: 14 }} />
+            {/* Search */}
+            <View
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 10, height: 48, borderRadius: Radius.btn, borderWidth: 1.5,
+                borderColor: query ? accent : Colors.border, backgroundColor: Colors.inputBg, paddingHorizontal: 14, marginBottom: 12,
+              }}
+            >
+              <Sym name="search" size={20} color={Colors.textMuted} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search your business type…"
+                placeholderTextColor={Colors.textMuted}
+                autoFocus
+                style={{ flex: 1, fontFamily: Font.semibold, fontSize: 15, color: Colors.textPrimary }}
+              />
+              {query ? (
+                <Pressable onPress={() => setQuery('')} hitSlop={8}><Sym name="close" size={18} color={Colors.textMuted} /></Pressable>
+              ) : null}
+            </View>
 
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-            {filtered ? (
-              filtered.length > 0 ? (
-                filtered.map((it) => <Row key={it} label={it} selected={it === value} accent={accent} onPress={() => pick(it)} />)
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              {filtered ? (
+                filtered.length > 0 ? (
+                  filtered.map((it) => <Row key={it} label={it} selected={it === value} accent={accent} onPress={() => pick(it)} />)
+                ) : (
+                  <Text style={{ fontFamily: Font.medium, fontSize: 14, color: Colors.textMuted, paddingVertical: 24, textAlign: 'center' }}>
+                    No match — pick “Other”
+                  </Text>
+                )
               ) : (
-                <Text style={{ fontFamily: Font.medium, fontSize: 14, color: Colors.textMuted, paddingVertical: 24, textAlign: 'center' }}>
-                  No match — pick “Other”
-                </Text>
-              )
-            ) : (
-              <>
-                {INDUSTRY_GROUPS.map((g) => (
-                  <View key={g.group}>
-                    <Text style={{ fontFamily: Font.extrabold, fontSize: 12, color: accent, letterSpacing: 0.4, marginTop: 14, marginBottom: 2, textTransform: 'uppercase' }}>
-                      {g.group}
-                    </Text>
-                    {g.items.map((it) => <Row key={it} label={it} selected={it === value} accent={accent} onPress={() => pick(it)} />)}
-                  </View>
-                ))}
-                <Text style={{ fontFamily: Font.extrabold, fontSize: 12, color: accent, letterSpacing: 0.4, marginTop: 14, marginBottom: 2, textTransform: 'uppercase' }}>
-                  Other
-                </Text>
-                <Row label="Other" selected={value === 'Other'} accent={accent} onPress={() => pick('Other')} />
-              </>
-            )}
-          </ScrollView>
-        </View>
+                <>
+                  {INDUSTRY_GROUPS.map((g) => (
+                    <View key={g.group}>
+                      <Text style={{ fontFamily: Font.extrabold, fontSize: 12, color: accent, letterSpacing: 0.4, marginTop: 14, marginBottom: 2, textTransform: 'uppercase' }}>
+                        {g.group}
+                      </Text>
+                      {g.items.map((it) => <Row key={it} label={it} selected={it === value} accent={accent} onPress={() => pick(it)} />)}
+                    </View>
+                  ))}
+                  <Text style={{ fontFamily: Font.extrabold, fontSize: 12, color: accent, letterSpacing: 0.4, marginTop: 14, marginBottom: 2, textTransform: 'uppercase' }}>
+                    Other
+                  </Text>
+                  <Row label="Other" selected={value === 'Other'} accent={accent} onPress={() => pick('Other')} />
+                </>
+              )}
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
