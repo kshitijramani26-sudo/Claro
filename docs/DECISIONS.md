@@ -10,6 +10,19 @@ Format:
 - Open items / next:
 ```
 
+## [2026-06-14] — Antigravity — Core UI/UX Polishing, Analytics Split, & Automatic OTA Update Checks
+- What changed:
+  - **Automatic OTA Updates Check**: Added programmatic update checking and reload logic in `RootLayout` (`_layout.tsx`) on startup so that new changes are loaded and applied automatically without requiring force-quitting the app twice.
+  - **Outstanding Balance Formatting**: Fixed the Customer Activity outstanding balance display to format in rupees directly without dividing by 100, resolving the duplicate division error.
+  - **Create Bill Rx Keyboard UX**: Unnested the Eye Prescription `OverlayShell` and conditionally hid the billing CTA overlay in `CreateBillOverlay.tsx` to prevent keyboard layout overlap.
+  - **Settings Dropdown Modal Keyboard UX**: Wrapped the modal layout in `IndustrySelect.tsx` with a `KeyboardAvoidingView` to prevent the iOS keyboard from obscuring options when typing.
+  - **Analytics Payment Mix credit logic**: Modified `/analytics` backend router to query from `payments` (cash/UPI) and `khata_entries` (credit) tables, properly splitting partial payments and credit.
+  - **Time-Based Home Greetings**: Replaced static "Good morning" with a dynamic check based on the current hour of the day.
+- Why:
+  - Solves the critical client-side UI bugs reported from physical testing and ensures seamless OTA update propagation to client devices.
+- Open items / next:
+  - Verify deployment on Android (custom APK) and iOS (Expo Go).
+
 ## [2026-06-14] — Antigravity — Optical Industry Billing & Prescription Bug Fixes
 - What changed:
   - **Advance Payment QR**: Fixed ScanPayOverlay QR code to show the received advance amount (e.g. ₹1000) rather than the total bill (e.g. ₹1800) during advance payment UPI method.

@@ -19,6 +19,7 @@ import { useAppStore } from '@/state/store';
 import { loadSessionToken, signOut } from '@/lib/supabase';
 import { setAuthToken, ApiError } from '@/lib/http';
 import { api } from '@/lib/api';
+import * as Updates from 'expo-updates';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,8 +32,29 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [updatesChecked, setUpdatesChecked] = useState(false);
   const phase = useAppStore((s) => s.phase);
   const obStep = useAppStore((s) => s.obStep);
+
+  useEffect(() => {
+    async function checkUpdates() {
+      try {
+        if (!__DEV__) {
+          const update = await Updates.checkForUpdateAsync();
+          if (update.isAvailable) {
+            await Updates.fetchUpdateAsync();
+            await Updates.reloadAsync();
+            return;
+          }
+        }
+      } catch (e) {
+        console.log('Update check failed:', e);
+      } finally {
+        setUpdatesChecked(true);
+      }
+    }
+    checkUpdates();
+  }, []);
 
   useEffect(() => {
     async function checkSession() {
@@ -66,12 +88,12 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded && sessionChecked) {
+    if (fontsLoaded && sessionChecked && updatesChecked) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, sessionChecked]);
+  }, [fontsLoaded, sessionChecked, updatesChecked]);
 
-  if (!fontsLoaded || !sessionChecked) return null;
+  if (!fontsLoaded || !sessionChecked || !updatesChecked) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -86,3 +108,4 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
