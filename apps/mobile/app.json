@@ -2,6 +2,7 @@
   "expo": {
     "name": "Claro",
     "slug": "claro",
+    "owner": "claro-betacheckteam",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -55,14 +56,14 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fbb59752-d798-457e-aebf-7563b1b7cf09"
+        "projectId": "68553041-4eee-4bf7-bb78-78bcabc6e4f0"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/fbb59752-d798-457e-aebf-7563b1b7cf09"
+      "url": "https://u.expo.dev/68553041-4eee-4bf7-bb78-78bcabc6e4f0"
     }
   }
 }

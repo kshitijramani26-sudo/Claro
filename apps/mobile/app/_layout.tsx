@@ -37,6 +37,16 @@ export default function RootLayout() {
   const obStep = useAppStore((s) => s.obStep);
 
   useEffect(() => {
+    let active = true;
+
+    // Safety fallback: if checking for updates takes > 3 seconds, let the app start anyway
+    const timer = setTimeout(() => {
+      if (active) {
+        console.log('Update check safety timeout triggered');
+        setUpdatesChecked(true);
+      }
+    }, 3000);
+
     async function checkUpdates() {
       try {
         if (!__DEV__) {
@@ -50,13 +60,30 @@ export default function RootLayout() {
       } catch (e) {
         console.log('Update check failed:', e);
       } finally {
-        setUpdatesChecked(true);
+        clearTimeout(timer);
+        if (active) {
+          setUpdatesChecked(true);
+        }
       }
     }
     checkUpdates();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    // Safety fallback: if session check takes > 4 seconds, let the app start anyway
+    const timer = setTimeout(() => {
+      if (active) {
+        console.log('Session check safety timeout triggered');
+        setSessionChecked(true);
+      }
+    }, 4000);
+
     async function checkSession() {
       try {
         const token = await loadSessionToken();
@@ -68,23 +95,39 @@ export default function RootLayout() {
             useAppStore.getState().setBusiness(business);
             useAppStore.getState().setPhase('app');
           } catch (e) {
-            if (e instanceof ApiError && e.status === 404 && e.code === 'no_business') {
-              // Verified phone number, but did not finish onboarding setup
-              useAppStore.getState().setPhase('onboarding');
-              useAppStore.getState().setObStep(3);
+            console.error('getBusiness failed in checkSession:', e);
+            if (e instanceof ApiError) {
+              if (e.status === 404 && e.code === 'no_business') {
+                // Verified phone number, but did not finish onboarding setup
+                useAppStore.getState().setPhase('onboarding');
+                useAppStore.getState().setObStep(3);
+              } else if (e.status === 401 || e.status === 403) {
+                // Token is explicitly invalid/expired (e.g. 401 Unauthorized), logout cleanly
+                await signOut();
+              } else {
+                // Other server errors (500, etc.) - keep session, let the app load
+                useAppStore.getState().setPhase('app');
+              }
             } else {
-              // Token is invalid/expired (e.g. 401 Unauthorized), logout cleanly
-              await signOut();
+              // Network/timeout error - keep session, let the app load
+              useAppStore.getState().setPhase('app');
             }
           }
         }
       } catch (err) {
         console.error('Session checking failed:', err);
       } finally {
-        setSessionChecked(true);
+        clearTimeout(timer);
+        if (active) {
+          setSessionChecked(true);
+        }
       }
     }
     checkSession();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
