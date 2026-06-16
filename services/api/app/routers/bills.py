@@ -90,11 +90,11 @@ async def bill_share_link(bill_id: UUID, biz: CurrentBusiness = Depends(get_curr
         pass
     pdf = render_invoice_pdf(bill, biz.row, vpa)
     path = f"{biz.id}/{bill.invoice_no}.pdf"
-    url = await upload_invoice_pdf(path, pdf)
+    url, reason = await upload_invoice_pdf(path, pdf)
     if url is not None:
         async with biz_txn(biz.id) as conn:
             await conn.execute("UPDATE bills SET pdf_url = $1 WHERE id = $2 AND business_id = $3", url, bill_id, biz.id)
-    return {"url": url}
+    return {"url": url, "reason": reason}
 
 
 @router.get("/{bill_id}/upi", response_model=UpiRead)

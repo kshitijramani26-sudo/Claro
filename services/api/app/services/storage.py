@@ -30,16 +30,17 @@ def storage_enabled() -> bool:
     return bool(s.supabase_service_role_key and supabase_base_url())
 
 
-async def upload_invoice_pdf(path: str, pdf: bytes) -> str | None:
-    """Upsert the PDF into the public invoice bucket; return its public URL."""
+async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
+    """Upsert the PDF into the public invoice bucket. Returns (public_url, reason);
+    url is None on any failure, reason names the cause for diagnostics."""
     s = get_settings()
     base = supabase_base_url()
     if not s.supabase_service_role_key:
         logger.warning("invoice PDF host skipped: SUPABASE_SERVICE_ROLE_KEY not set")
-        return None
+        return None, "no_service_key"
     if not base:
         logger.warning("invoice PDF host skipped: could not resolve Supabase URL (set SUPABASE_URL)")
-        return None
+        return None, "no_supabase_url"
     url = f"{base}/storage/v1/object/{s.invoice_bucket}/{path}"
     headers = {
         "Authorization": f"Bearer {s.supabase_service_role_key}",
@@ -48,9 +49,13 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> str | None:
         "x-upsert": "true",
         "cache-control": "3600",
     }
-    async with httpx.AsyncClient(timeout=20) as client:
-        resp = await client.post(url, content=pdf, headers=headers)
-        if resp.status_code not in (200, 201):
-            logger.warning("invoice PDF upload failed: %s %s", resp.status_code, resp.text[:200])
-            return None
-    return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}"
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(url, content=pdf, headers=headers)
+    except Exception as exc:  # network/DNS failure
+        logger.warning("invoice PDF upload error: %s", exc)
+        return None, "upload_error"
+    if resp.status_code not in (200, 201):
+        logger.warning("invoice PDF upload failed: %s %s", resp.status_code, resp.text[:200])
+        return None, f"http_{resp.status_code}"
+    return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
