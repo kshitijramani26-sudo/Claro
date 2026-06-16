@@ -186,7 +186,7 @@ export default function Profile() {
 
         {/* Payments */}
         <Card pad={20} style={{ gap: 12 }}>
-          <SectionTitle icon="qr_code_2" label="Payments" accent={brand.brand} />
+          <SectionTitle icon="qr_code_2" label="Saved UPI methods" accent={brand.brand} />
           {(methods ?? []).map((m) => (
             <View
               key={m.id}
@@ -264,7 +264,7 @@ export default function Profile() {
             </Text>
             {newQr ? <Sym name="check_circle" size={20} color={Colors.success} /> : null}
           </Tap>
-          <PrimaryButton label="Add UPI method" icon="add" onPress={addMethod} />
+          <PrimaryButton label="Add a UPI method" icon="add" onPress={addMethod} />
           <Text style={{ fontFamily: Font.medium, fontSize: 11.5, color: Colors.textMuted }}>
             No image? Claro generates an exact-amount QR from your UPI ID for every bill.
           </Text>

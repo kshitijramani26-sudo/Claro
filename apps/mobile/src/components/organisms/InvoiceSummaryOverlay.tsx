@@ -76,9 +76,8 @@ export function InvoiceSummaryOverlay() {
 
   const shareDetails = async () => {
     if (!bill) return {};
-    const upi = isUpi ? await api.getBillUpi(bill.id).catch(() => null) : null;
     const link = await api.getBillShareLink(bill.id).catch(() => null);
-    return { pdfUrl: link };
+    return { pdfUrl: link, customerPhone: bill.customerPhone };
   };
 
   return (
@@ -118,23 +117,23 @@ export function InvoiceSummaryOverlay() {
               />
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                 <OutlineButton
-                  label="PDF"
-                  icon="picture_as_pdf"
+                  label="Send on WhatsApp"
+                  iconNode={<WhatsAppIcon size={18} />}
+                  style={{ flex: 1.5 }}
+                  fontSize={14}
+                  onPress={async () => {
+                    try { await shareWhatsAppInvoice(bill, business, await shareDetails()); }
+                    catch { flashToast('Could not open WhatsApp'); }
+                  }}
+                />
+                <OutlineButton
+                  label="Share / Save"
+                  icon="ios_share"
                   style={{ flex: 1 }}
                   fontSize={14}
                   onPress={async () => {
                     try { await sharePdfFile(bill, business, await shareDetails()); }
                     catch (e) { flashToast((e as Error).message); }
-                  }}
-                />
-                <OutlineButton
-                  label="WhatsApp"
-                  iconNode={<WhatsAppIcon size={18} />}
-                  style={{ flex: 1 }}
-                  fontSize={14}
-                  onPress={async () => {
-                    try { await shareWhatsAppInvoice(bill, business, await shareDetails()); }
-                    catch { flashToast('Could not open WhatsApp'); }
                   }}
                 />
               </View>

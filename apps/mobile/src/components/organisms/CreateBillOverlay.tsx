@@ -15,7 +15,7 @@ import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
-import { formatINR } from '@/lib/format';
+import { formatINR, formatDateDMY } from '@/lib/format';
 import { previewBill } from '@/lib/gstPreview';
 import { buildUpiUri } from '@/lib/upi';
 import { sharePdfFile, shareWhatsAppInvoice } from '@/lib/invoiceShare';
@@ -283,6 +283,19 @@ export function CreateBillOverlay() {
     closeOverlay();
   };
 
+  // Add a custom line to the bill AND remember it in the catalogue (untracked) so
+  // the shopkeeper sees it auto-suggested next time. Dedupe by name (case-insensitive).
+  const addCustomItem = () => {
+    const name = cb.nName.trim();
+    const price = parseFloat(cb.nPrice) || 0;
+    cbAddCustomItem(); // adds to bill + clears the fields (no-op if invalid)
+    if (name && price > 0 && !(catalogData ?? []).some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+      api.addInventory({ name, qty: 0, threshold: 0, costRupees: 0, priceRupees: price })
+        .then(() => refresh())
+        .catch(() => undefined);
+    }
+  };
+
   // ---------- REVIEW STEP ----------
   if (cb.step === 'review') {
     return (
@@ -316,7 +329,7 @@ export function CreateBillOverlay() {
             customer={saved?.customerName || cb.custName}
             items={cb.items}
             invoiceNo={saved?.invoiceNo ?? 'Draft'}
-            date={saved?.date ?? new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+            date={saved?.date ?? formatDateDMY(new Date())}
             accent={theme.accent}
             totals={totals}
             showQr={isUpi}
@@ -372,8 +385,8 @@ export function CreateBillOverlay() {
           ) : null}
 
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-            <OutlineButton label="PDF" icon="picture_as_pdf" onPress={sharePdf} style={{ flex: 1 }} fontSize={14} />
-            <OutlineButton label="WhatsApp" iconNode={<WhatsAppIcon size={18} />} onPress={shareWhatsApp} style={{ flex: 1 }} fontSize={14} />
+            <OutlineButton label="Send on WhatsApp" iconNode={<WhatsAppIcon size={18} />} onPress={shareWhatsApp} style={{ flex: 1.5 }} fontSize={14} />
+            <OutlineButton label="Share / Save" icon="ios_share" onPress={sharePdf} style={{ flex: 1 }} fontSize={14} />
           </View>
         </ScrollView>
       </OverlayShell>
@@ -566,7 +579,7 @@ export function CreateBillOverlay() {
               <SheetField placeholder="Unit price (₹)" value={cb.nPrice} onChangeText={(t) => cbSet({ nPrice: t })} accent={theme.accent} keyboardType="number-pad" style={{ flex: 1 }} />
             </View>
             <Tap
-              onPress={cbAddCustomItem}
+              onPress={addCustomItem}
               style={{
                 height: 46,
                 borderRadius: Radius.btnSm,

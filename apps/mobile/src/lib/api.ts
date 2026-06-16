@@ -6,7 +6,7 @@
  * rupees so every existing screen keeps working unchanged.
  */
 import { request } from './http';
-import { paiseToRupees as r, timeAgo } from './format';
+import { paiseToRupees as r, timeAgo, formatDateDMY } from './format';
 import * as mock from '@/data/mockData';
 import type {
   Activity,
@@ -94,7 +94,7 @@ function mapBill(w: WireBill): BillResult {
     taxTotal: r(w.tax_total_paise), grandTotal: r(w.grand_total_paise),
     paymentMode: w.payment_mode, customerName: w.customer_name, customerPhone: w.customer_phone ?? '',
     amountReceived: r(w.amount_received_paise ?? 0), balanceDue: r(w.balance_due_paise ?? 0),
-    date: new Date(w.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    date: formatDateDMY(w.created_at),
     items: w.items.map((i) => ({
       name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.line_total_paise),
       hsnCode: i.hsn_code, taxRateBps: i.tax_rate_bps,
@@ -104,7 +104,7 @@ function mapBill(w: WireBill): BillResult {
     })),
     prescription: w.prescription ? mapPrescription(w.prescription) : null,
     orderStatus: w.order_status,
-    deliveryDate: w.delivery_date ? new Date(w.delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+    deliveryDate: w.delivery_date ? formatDateDMY(w.delivery_date) : null,
   };
 }
 
@@ -977,11 +977,11 @@ const mockApi = {
       customerPhone: input.customerPhone || '',
       amountReceived: received,
       balanceDue,
-      date: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+      date: formatDateDMY(new Date()),
       items,
       prescription: prescriptionResult,
       orderStatus: input.orderStatus || 'delivered',
-      deliveryDate: input.deliveryDate ? new Date(input.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+      deliveryDate: input.deliveryDate ? formatDateDMY(input.deliveryDate) : null,
     };
 
     if (input.staffId) {

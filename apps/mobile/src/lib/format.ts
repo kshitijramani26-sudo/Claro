@@ -60,3 +60,12 @@ export function shortDate(iso: string): string {
   if (Number.isNaN(d.getTime())) return '';
   return `${d.getDate().toString().padStart(2, '0')} ${d.toLocaleString('en-IN', { month: 'short' })}`;
 }
+
+/** DD-MM-YYYY — the canonical bill date format shown everywhere (card, summary, PDFs). */
+export function formatDateDMY(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return typeof input === 'string' ? input : '';
+  const dd = d.getDate().toString().padStart(2, '0');
+  const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+  return `${dd}-${mm}-${d.getFullYear()}`;
+}

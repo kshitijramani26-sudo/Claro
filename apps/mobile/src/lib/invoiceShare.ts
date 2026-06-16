@@ -272,7 +272,7 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
       ${bill.deliveryDate ? `
       <div class="meta-cell">
         <div class="meta-label">Delivery Date</div>
-        <div class="meta-value">${esc(new Date(bill.deliveryDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))}</div>
+        <div class="meta-value">${esc(bill.deliveryDate)}</div>
       </div>
       ` : ''}
     </div>
@@ -379,6 +379,10 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
         2. All disputes are subject to local jurisdiction only.<br/>
         3. Payment due upon receipt unless credit terms are agreed in writing.
       </div>
+    </div>
+
+    <div style="margin-top:14px; text-align:center; font-size:11px; color:#9AA0AC; font-style:italic;">
+      This is a digitally generated invoice and does not require a signature.
     </div>
 
     <div class="footer">Thank you for your business &nbsp;·&nbsp; Powered by Claro</div>
