@@ -9,6 +9,50 @@ Format:
 - Why:
 - Open items / next:
 ```
+## [2026-06-17] — Claude Code (Opus 4.8) — Direct-to-customer invoicing + optical wheel power picker
+- What changed (all-industry, items 1-7):
+  - Direct WhatsApp/PDF send (items 1-3): both the post-bill review screen and the past-bill invoice summary now deep-link to *that customer's* WhatsApp chat (`wa.me/<E.164>`, normalized to +91 via `waTarget`), pre-filled with the invoice message + hosted PDF link. Fixed `InvoiceSummaryOverlay.shareDetails` which previously dropped `customerPhone` (past-bill share opened WhatsApp untargeted). Manually-typed/unsaved numbers work (review screen already passed `cb.custPhone`). Buttons re-labelled: primary "Send on WhatsApp", secondary "Share / Save" (native sheet). Created public Supabase `invoices` bucket for the hosted PDF.
+  - Custom-item persistence (item 4): a custom line typed during billing is saved to the shop's inventory (untracked, qty 0), deduped case-insensitively, so it auto-suggests next time.
+  - Digital-bill line (item 5): "This is a digitally generated invoice and does not require a signature." added to both PDF generators (`invoiceShare.ts` + `pdfgen.py`).
+  - Profile (item 6): "Payments / Add UPI method" → "Saved UPI methods / Add a UPI method" (function unchanged).
+  - Dates (item 7): DD-MM-YYYY everywhere via `formatDateDMY` (api mapBill + mocks, InvoiceCard/summary, invoiceShare delivery, pdfgen strftime).
+  - Optical wheel power picker (item 10): new `PowerWheelSheet.tsx` — tap any SPH/CYL/AXIS/Add cell in the Rx grid → bottom-sheet wheel (no keyboard). SPH -20..+20, CYL -6..+6, ADD +0.25..+3.50 (0.25, 0="Plano"); AXIS 0-180° (1). Blank "—" + Clear keep every field optional. Snap band in page accent; light Android `Vibration` tick. Removed old `RxStepperField`. Designed via /ui-ux-pro-max.
+- Why: one-tap professional invoicing to the actual customer; faster, error-free optician power entry; consistent Indian date format and clearer UPI wording.
+- Verify: `tsc --noEmit` clean; `expo-doctor` 18/18; `pdfgen.render_invoice_pdf` smoke-renders a valid `%PDF-` (pytest suite needs a live Postgres, not run; the change is PDF string-formatting only, no billing logic). OTA-safe — no new native modules (Vibration is RN core).
+- Ship: backend pushed to GitHub (Render auto-redeploy) for the pdfgen line + DMY date; frontend shipped `eas update --branch preview`. Same Android link + iOS Expo Go QR update with no reinstall.
+- Owner action required: add `SUPABASE_SERVICE_ROLE_KEY` to Render env so `POST /bills/{id}/share-link` returns a public PDF URL (bucket exists but uploads need the service-role key). Without it, WhatsApp still opens the customer chat with the invoice text but no PDF link.
+- Open items / next: confirm OTA reached Android + iOS testers; set the Render service-role key; field-test wheel on a real optician bill.
+
+## [2026-06-16] — Antigravity — Mobile App Startup Splash Screen Freeze Hotfix
+- What changed:
+  - Added a 3-second safety timeout to `checkUpdates()` in `app/_layout.tsx` to prevent the startup flow from hanging if `Updates.checkForUpdateAsync()` hangs or times out.
+  - Added a 4-second safety timeout to `checkSession()` in `app/_layout.tsx` to prevent the startup flow from hanging if checking for sessions/business details takes too long (e.g. while Render spin-up is in progress).
+  - Hardened authentication error handling in `checkSession()`. The app now only executes `signOut()` (which clears local session credentials) if it receives a definitive `401` or `403` ApiError. Network/500/timeout failures will keep the session and allow the user to load the app interface.
+  - Deployed the JS hotfix via EAS Update to the `preview` branch (update group ID `ee25a619-a893-458a-95f0-73714a234d53`).
+- Why:
+  - Resolve on-device splash screen freezes caused by connection/service lags or Render cold-start delays.
+- Open items / next:
+  - Verify that both Android and iOS beta testers receive the hotfix seamlessly on their devices.
+
+## [2026-06-14] — Antigravity — EAS Project Migration to Organization
+- What changed:
+  - Migrated the EAS project owner configuration in `app.json` to the new organization `claro-betacheckteam` (slug normalized as `claro-betacheckteam`).
+  - Linked the project on EAS servers to the new organization with project ID `68553041-4eee-4bf7-bb78-78bcabc6e4f0` and updated the `updates.url` config.
+  - Published a new EAS update to the `preview` branch under the organization (`f8551408-08fb-41a3-b014-ee685801c109`) to allow shared Expo Go testing.
+- Why:
+  - Enable iOS testers (friends) to scan and run the app in Expo Go by joining the organization, bypassing the personal account 403 authorization restrictions.
+- Open items / next:
+  - Invite friends to the organization via dashboard and ask them to test.
+
+## [2026-06-14] — Antigravity — EAS Build Access & APK Sharing
+- What changed:
+  - Checked visibility/accessibility of latest Android preview APK build (`8f114d4e-0931-4d77-a1e5-87714e38c4c5`).
+  - Confirmed the direct URL (`https://expo.dev/artifacts/eas/UyCQgsQj5K5cY5OnEK9CXfsXXY0rMFS_7WEfMo8xUW8.apk`) returns `403 Forbidden` for unauthenticated requests due to private project settings.
+  - Downloaded the APK locally (`claro-preview.apk`) to verify its integrity and documented settings to toggle visibility to Public/Unlisted.
+- Why:
+  - Enable sharing of the test APK link with external testers/friends without requiring them to log in to the `kshitijr26` Expo account.
+- Open items / next:
+  - Project owner needs to toggle project settings to **Public** or **Unlisted** on the Expo dashboard to make EAS URLs publicly downloadable.
 
 ## [2026-06-14] — Antigravity — Core UI/UX Polishing, Analytics Split, & Automatic OTA Update Checks
 - What changed:
