@@ -44,7 +44,7 @@ export async function request<T>(path: string, init?: RequestInit & { json?: unk
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6-second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 35000); // 35-second timeout (accommodates Render spin-up)
 
   try {
     const res = await fetch(`${BASE_URL}${path}`, { 
