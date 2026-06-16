@@ -57,5 +57,5 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         return None, "upload_error"
     if resp.status_code not in (200, 201):
         logger.warning("invoice PDF upload failed: %s %s", resp.status_code, resp.text[:200])
-        return None, f"http_{resp.status_code}"
+        return None, f"http_{resp.status_code}:{resp.text[:120]}"
     return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
