@@ -13,7 +13,7 @@ import { Select } from '@/components/atoms/Select';
 import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
-import { PowerWheelSheet, useRxWheelOptions, type WheelOption } from '@/components/molecules/PowerWheelSheet';
+import { PowerWheelSheet, useRxWheelOptions, type WheelOption, type DualOptions } from '@/components/molecules/PowerWheelSheet';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { formatINR, formatDateDMY } from '@/lib/format';
@@ -72,12 +72,15 @@ export function CreateBillOverlay() {
   const rxWheel = useRxWheelOptions();
   const [wheel, setWheel] = useState<{
     title: string;
-    options: WheelOption[];
     value: string;
     onSelect: (v: string) => void;
+    options?: WheelOption[];
+    dual?: DualOptions;
   } | null>(null);
-  const openWheel = (title: string, options: WheelOption[], value: string, onSelect: (v: string) => void) =>
-    setWheel({ title, options, value, onSelect });
+  const openWheelSingle = (title: string, options: WheelOption[], value: string, onSelect: (v: string) => void) =>
+    setWheel({ title, value, onSelect, options });
+  const openWheelDual = (title: string, dual: DualOptions, value: string, onSelect: (v: string) => void) =>
+    setWheel({ title, value, onSelect, dual });
   const [deliveryDate, setDeliveryDate] = useState<string>(''); // YYYY-MM-DD
   const [orderStatus, setOrderStatus] = useState<'pending' | 'ready' | 'delivered'>('delivered');
   const [lastRxInfo, setLastRxInfo] = useState<{ date: string; rx: any } | null>(null);
@@ -981,9 +984,9 @@ export function CreateBillOverlay() {
             {/* Right eye distance */}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <Text style={{ width: 60, fontFamily: Font.bold, fontSize: 12, color: Colors.textPrimary }}>R. Dist</Text>
-              <RxPowerCell flex={1} display={rDistSph} accent={theme.accent} onPress={() => openWheel('Right · Distance · SPH', rxWheel.sph, rDistSph, setRDistSph)} />
-              <RxPowerCell flex={1} display={rDistCyl} accent={theme.accent} onPress={() => openWheel('Right · Distance · CYL', rxWheel.cyl, rDistCyl, setRDistCyl)} />
-              <RxPowerCell width={44} display={rDistAxis ? `${rDistAxis}°` : ''} accent={theme.accent} onPress={() => openWheel('Right · Distance · AXIS', rxWheel.axis, rDistAxis, setRDistAxis)} />
+              <RxPowerCell flex={1} display={rDistSph} accent={theme.accent} onPress={() => openWheelDual('Right · Distance · SPH', rxWheel.sph, rDistSph, setRDistSph)} />
+              <RxPowerCell flex={1} display={rDistCyl} accent={theme.accent} onPress={() => openWheelDual('Right · Distance · CYL', rxWheel.cyl, rDistCyl, setRDistCyl)} />
+              <RxPowerCell width={44} display={rDistAxis ? `${rDistAxis}°` : ''} accent={theme.accent} onPress={() => openWheelSingle('Right · Distance · AXIS', rxWheel.axis, rDistAxis, setRDistAxis)} />
               <TextInput
                 value={rDistVn}
                 onChangeText={setRDistVn}
@@ -995,9 +998,9 @@ export function CreateBillOverlay() {
             {/* Right eye near */}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <Text style={{ width: 60, fontFamily: Font.bold, fontSize: 12, color: Colors.textPrimary }}>R. Near</Text>
-              <RxPowerCell flex={1} display={rNearSph} accent={theme.accent} onPress={() => openWheel('Right · Near · SPH', rxWheel.sph, rNearSph, setRNearSph)} />
-              <RxPowerCell flex={1} display={rNearCyl} accent={theme.accent} onPress={() => openWheel('Right · Near · CYL', rxWheel.cyl, rNearCyl, setRNearCyl)} />
-              <RxPowerCell width={44} display={rNearAxis ? `${rNearAxis}°` : ''} accent={theme.accent} onPress={() => openWheel('Right · Near · AXIS', rxWheel.axis, rNearAxis, setRNearAxis)} />
+              <RxPowerCell flex={1} display={rNearSph} accent={theme.accent} onPress={() => openWheelDual('Right · Near · SPH', rxWheel.sph, rNearSph, setRNearSph)} />
+              <RxPowerCell flex={1} display={rNearCyl} accent={theme.accent} onPress={() => openWheelDual('Right · Near · CYL', rxWheel.cyl, rNearCyl, setRNearCyl)} />
+              <RxPowerCell width={44} display={rNearAxis ? `${rNearAxis}°` : ''} accent={theme.accent} onPress={() => openWheelSingle('Right · Near · AXIS', rxWheel.axis, rNearAxis, setRNearAxis)} />
               <TextInput
                 value={rNearVn}
                 onChangeText={setRNearVn}
@@ -1009,9 +1012,9 @@ export function CreateBillOverlay() {
             {/* Left eye distance */}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <Text style={{ width: 60, fontFamily: Font.bold, fontSize: 12, color: Colors.textPrimary }}>L. Dist</Text>
-              <RxPowerCell flex={1} display={lDistSph} accent={theme.accent} onPress={() => openWheel('Left · Distance · SPH', rxWheel.sph, lDistSph, setLDistSph)} />
-              <RxPowerCell flex={1} display={lDistCyl} accent={theme.accent} onPress={() => openWheel('Left · Distance · CYL', rxWheel.cyl, lDistCyl, setLDistCyl)} />
-              <RxPowerCell width={44} display={lDistAxis ? `${lDistAxis}°` : ''} accent={theme.accent} onPress={() => openWheel('Left · Distance · AXIS', rxWheel.axis, lDistAxis, setLDistAxis)} />
+              <RxPowerCell flex={1} display={lDistSph} accent={theme.accent} onPress={() => openWheelDual('Left · Distance · SPH', rxWheel.sph, lDistSph, setLDistSph)} />
+              <RxPowerCell flex={1} display={lDistCyl} accent={theme.accent} onPress={() => openWheelDual('Left · Distance · CYL', rxWheel.cyl, lDistCyl, setLDistCyl)} />
+              <RxPowerCell width={44} display={lDistAxis ? `${lDistAxis}°` : ''} accent={theme.accent} onPress={() => openWheelSingle('Left · Distance · AXIS', rxWheel.axis, lDistAxis, setLDistAxis)} />
               <TextInput
                 value={lDistVn}
                 onChangeText={setLDistVn}
@@ -1023,9 +1026,9 @@ export function CreateBillOverlay() {
             {/* Left eye near */}
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <Text style={{ width: 60, fontFamily: Font.bold, fontSize: 12, color: Colors.textPrimary }}>L. Near</Text>
-              <RxPowerCell flex={1} display={lNearSph} accent={theme.accent} onPress={() => openWheel('Left · Near · SPH', rxWheel.sph, lNearSph, setLNearSph)} />
-              <RxPowerCell flex={1} display={lNearCyl} accent={theme.accent} onPress={() => openWheel('Left · Near · CYL', rxWheel.cyl, lNearCyl, setLNearCyl)} />
-              <RxPowerCell width={44} display={lNearAxis ? `${lNearAxis}°` : ''} accent={theme.accent} onPress={() => openWheel('Left · Near · AXIS', rxWheel.axis, lNearAxis, setLNearAxis)} />
+              <RxPowerCell flex={1} display={lNearSph} accent={theme.accent} onPress={() => openWheelDual('Left · Near · SPH', rxWheel.sph, lNearSph, setLNearSph)} />
+              <RxPowerCell flex={1} display={lNearCyl} accent={theme.accent} onPress={() => openWheelDual('Left · Near · CYL', rxWheel.cyl, lNearCyl, setLNearCyl)} />
+              <RxPowerCell width={44} display={lNearAxis ? `${lNearAxis}°` : ''} accent={theme.accent} onPress={() => openWheelSingle('Left · Near · AXIS', rxWheel.axis, lNearAxis, setLNearAxis)} />
               <TextInput
                 value={lNearVn}
                 onChangeText={setLNearVn}
@@ -1037,11 +1040,11 @@ export function CreateBillOverlay() {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Add R</Text>
-                <RxPowerCell display={addR} accent={theme.accent} onPress={() => openWheel('Right · ADD', rxWheel.add, addR, setAddR)} />
+                <RxPowerCell display={addR} accent={theme.accent} onPress={() => openWheelSingle('Right · ADD', rxWheel.add, addR, setAddR)} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>Add L</Text>
-                <RxPowerCell display={addL} accent={theme.accent} onPress={() => openWheel('Left · ADD', rxWheel.add, addL, setAddL)} />
+                <RxPowerCell display={addL} accent={theme.accent} onPress={() => openWheelSingle('Left · ADD', rxWheel.add, addL, setAddL)} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: Font.semibold, fontSize: 12, color: Colors.textSecondary, marginBottom: 4 }}>P.D. (mm)</Text>
@@ -1097,6 +1100,7 @@ export function CreateBillOverlay() {
         <PowerWheelSheet
           title={wheel.title}
           options={wheel.options}
+          dual={wheel.dual}
           value={wheel.value}
           accent={theme.accent}
           onSelect={wheel.onSelect}

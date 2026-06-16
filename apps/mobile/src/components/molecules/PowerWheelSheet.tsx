@@ -27,49 +27,136 @@ export interface WheelOption {
   label: string;
 }
 
+/** Signed field split into positive (left) and negative (right) wheels. */
+export interface DualOptions {
+  pos: WheelOption[];
+  neg: WheelOption[];
+}
+
 interface Props {
   title: string;
-  options: WheelOption[];
   value: string;
   accent: string;
   onSelect: (value: string) => void;
   onClose: () => void;
+  /** Single wheel (AXIS, ADD). */
+  options?: WheelOption[];
+  /** Two-column wheel for signed powers (SPH, CYL): left +, right −. */
+  dual?: DualOptions;
 }
 
-/**
- * Lenskart-style bottom-sheet wheel for optical powers (SPH/CYL/AXIS/ADD).
- * No keyboard — scroll to a value, it snaps into the centred highlight band.
- * First option is always blank ("—"); every field stays optional.
- */
-export function PowerWheelSheet({ title, options, value, accent, onSelect, onClose }: Props) {
-  const insets = useSafeAreaInsets();
+// ---------- one scrollable wheel column ----------
+
+function WheelColumn({
+  options,
+  accent,
+  active,
+  startIndex,
+  onIndexChange,
+  onActivate,
+}: {
+  options: WheelOption[];
+  accent: string;
+  active: boolean;
+  startIndex: number;
+  onIndexChange: (i: number) => void;
+  onActivate?: () => void;
+}) {
   const ref = useRef<ScrollView>(null);
-  const startIdx = Math.max(0, options.findIndex((o) => o.value === value));
-  const [idx, setIdx] = useState(startIdx < 0 ? 0 : startIdx);
+  const [idx, setIdx] = useState(startIndex);
 
-  // Position the wheel on the current value once mounted.
   useEffect(() => {
-    const t = setTimeout(() => ref.current?.scrollTo({ y: startIdx * ITEM_H, animated: false }), 0);
+    const t = setTimeout(() => ref.current?.scrollTo({ y: startIndex * ITEM_H, animated: false }), 0);
     return () => clearTimeout(t);
-  }, [startIdx]);
+  }, [startIndex]);
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
-    const clamped = Math.min(options.length - 1, Math.max(0, next));
-    if (clamped !== idx) {
-      setIdx(clamped);
-      if (Platform.OS === 'android') Vibration.vibrate(6); // light tick, Android only
+  const update = (y: number, settle: boolean) => {
+    const next = Math.min(options.length - 1, Math.max(0, Math.round(y / ITEM_H)));
+    if (next !== idx) {
+      setIdx(next);
+      onIndexChange(next);
+      if (Platform.OS === 'android') Vibration.vibrate(6);
+    } else if (settle) {
+      onIndexChange(next);
     }
   };
 
-  const onSettle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = Math.round(e.nativeEvent.contentOffset.y / ITEM_H);
-    const clamped = Math.min(options.length - 1, Math.max(0, next));
-    setIdx(clamped);
+  return (
+    <View style={{ height: VISIBLE * ITEM_H, justifyContent: 'center' }}>
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: PAD,
+          height: ITEM_H,
+          borderRadius: Radius.tile,
+          backgroundColor: active ? `${accent}14` : Colors.inputBg,
+          borderWidth: 1.5,
+          borderColor: active ? accent : Colors.border,
+        }}
+      />
+      <ScrollView
+        ref={ref}
+        showsVerticalScrollIndicator={false}
+        snapToInterval={ITEM_H}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        onScrollBeginDrag={onActivate}
+        onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => update(e.nativeEvent.contentOffset.y, false)}
+        onMomentumScrollEnd={(e) => update(e.nativeEvent.contentOffset.y, true)}
+        onScrollEndDrag={(e) => update(e.nativeEvent.contentOffset.y, true)}
+        contentContainerStyle={{ paddingVertical: PAD }}
+      >
+        {options.map((o, i) => {
+          const on = i === idx && active;
+          return (
+            <View key={o.value || 'blank'} style={{ height: ITEM_H, alignItems: 'center', justifyContent: 'center' }}>
+              <Text
+                style={{
+                  fontFamily: on ? Font.extrabold : Font.semibold,
+                  fontSize: on ? 22 : 18,
+                  color: on ? accent : Colors.textMuted,
+                  opacity: i === idx ? 1 : 0.55,
+                }}
+              >
+                {o.label}
+              </Text>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Lenskart-style bottom-sheet power picker. AXIS/ADD use a single wheel; signed
+ * powers (SPH/CYL) split into two shorter columns — left positive, right negative —
+ * so the optician scrolls half the distance. No keyboard; every field optional.
+ */
+export function PowerWheelSheet({ title, value, accent, onSelect, onClose, options, dual }: Props) {
+  const insets = useSafeAreaInsets();
+
+  // Resolve initial selection.
+  const initSide: 'pos' | 'neg' = value.startsWith('-') ? 'neg' : 'pos';
+  const posStart = dual ? Math.max(0, dual.pos.findIndex((o) => o.value === value)) : 0;
+  const negStart = dual ? Math.max(0, dual.neg.findIndex((o) => o.value === value)) : 0;
+  const singleStart = options ? Math.max(0, options.findIndex((o) => o.value === value)) : 0;
+
+  const [side, setSide] = useState<'pos' | 'neg'>(initSide);
+  const [posIdx, setPosIdx] = useState(posStart);
+  const [negIdx, setNegIdx] = useState(negStart);
+  const [singleIdx, setSingleIdx] = useState(singleStart);
+
+  const current = (): string => {
+    if (dual) return side === 'pos' ? dual.pos[posIdx]?.value ?? '' : dual.neg[negIdx]?.value ?? '';
+    return options?.[singleIdx]?.value ?? '';
   };
 
-  const confirm = () => {
-    onSelect(options[idx]?.value ?? '');
+  const apply = (v: string) => {
+    onSelect(v);
     onClose();
   };
 
@@ -96,68 +183,54 @@ export function PowerWheelSheet({ title, options, value, accent, onSelect, onClo
       >
         <View style={{ width: 40, height: 5, borderRadius: Radius.pill, backgroundColor: Colors.dashed, alignSelf: 'center' }} />
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 }}>
           <Text style={{ fontFamily: Font.extrabold, fontSize: 17, color: Colors.textPrimary }}>{title}</Text>
-          <Tap
-            onPress={() => {
-              onSelect('');
-              onClose();
-            }}
-            hitSlop={8}
-          >
+          <Tap onPress={() => apply('')} hitSlop={8}>
             <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary }}>Clear</Text>
           </Tap>
         </View>
 
-        <View style={{ height: VISIBLE * ITEM_H, justifyContent: 'center' }}>
-          {/* Centred highlight band */}
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: PAD,
-              height: ITEM_H,
-              borderRadius: Radius.tile,
-              backgroundColor: `${accent}14`,
-              borderWidth: 1.5,
-              borderColor: accent,
-            }}
+        {dual ? (
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ textAlign: 'center', fontFamily: Font.bold, fontSize: 11, marginBottom: 6, color: side === 'pos' ? accent : Colors.textMuted }}>
+                Plus (+)
+              </Text>
+              <WheelColumn
+                options={dual.pos}
+                accent={accent}
+                active={side === 'pos'}
+                startIndex={posStart}
+                onActivate={() => setSide('pos')}
+                onIndexChange={setPosIdx}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ textAlign: 'center', fontFamily: Font.bold, fontSize: 11, marginBottom: 6, color: side === 'neg' ? accent : Colors.textMuted }}>
+                Minus (−)
+              </Text>
+              <WheelColumn
+                options={dual.neg}
+                accent={accent}
+                active={side === 'neg'}
+                startIndex={negStart}
+                onActivate={() => setSide('neg')}
+                onIndexChange={setNegIdx}
+              />
+            </View>
+          </View>
+        ) : (
+          <WheelColumn
+            options={options ?? []}
+            accent={accent}
+            active
+            startIndex={singleStart}
+            onIndexChange={setSingleIdx}
           />
-          <ScrollView
-            ref={ref}
-            showsVerticalScrollIndicator={false}
-            snapToInterval={ITEM_H}
-            decelerationRate="fast"
-            scrollEventThrottle={16}
-            onScroll={onScroll}
-            onMomentumScrollEnd={onSettle}
-            onScrollEndDrag={onSettle}
-            contentContainerStyle={{ paddingVertical: PAD }}
-          >
-            {options.map((o, i) => {
-              const active = i === idx;
-              return (
-                <View key={o.value || 'blank'} style={{ height: ITEM_H, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text
-                    style={{
-                      fontFamily: active ? Font.extrabold : Font.semibold,
-                      fontSize: active ? 22 : 18,
-                      color: active ? accent : Colors.textMuted,
-                      opacity: active ? 1 : 0.6,
-                    }}
-                  >
-                    {o.label}
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
+        )}
 
         <Tap
-          onPress={confirm}
+          onPress={() => apply(current())}
           style={{ height: 50, borderRadius: Radius.btn, backgroundColor: accent, alignItems: 'center', justifyContent: 'center', marginTop: 14 }}
         >
           <Text style={{ fontFamily: Font.extrabold, fontSize: 15, color: '#FFFFFF' }}>Done</Text>
@@ -173,19 +246,16 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Signed dioptre options; 0 → "Plano". Blank "—" prepended. min/max inclusive. */
-export function signedPowerOptions(min: number, max: number, step: number): WheelOption[] {
-  const out: WheelOption[] = [{ value: '', label: '—' }];
-  for (let n = min; n <= max + 1e-9; n = round2(n + step)) {
+/** Signed dioptre field split into +/− columns. Left col leads with blank "—" + Plano. */
+export function signedSplitOptions(max: number, step: number): DualOptions {
+  const pos: WheelOption[] = [{ value: '', label: '—' }, { value: 'Plano', label: 'Plano' }];
+  const neg: WheelOption[] = [{ value: '', label: '—' }];
+  for (let n = step; n <= max + 1e-9; n = round2(n + step)) {
     const v = round2(n);
-    if (v === 0) {
-      out.push({ value: 'Plano', label: 'Plano' });
-    } else {
-      const s = `${v > 0 ? '+' : '-'}${Math.abs(v).toFixed(2)}`;
-      out.push({ value: s, label: s });
-    }
+    pos.push({ value: `+${v.toFixed(2)}`, label: `+${v.toFixed(2)}` });
+    neg.push({ value: `-${v.toFixed(2)}`, label: `−${v.toFixed(2)}` }); // display uses U+2212 minus
   }
-  return out;
+  return { pos, neg };
 }
 
 /** Positive-only dioptre options (ADD). Blank "—" prepended. */
@@ -209,8 +279,8 @@ export function axisOptions(min: number, max: number): WheelOption[] {
 export function useRxWheelOptions() {
   return useMemo(
     () => ({
-      sph: signedPowerOptions(-20, 20, 0.25),
-      cyl: signedPowerOptions(-6, 6, 0.25),
+      sph: signedSplitOptions(20, 0.25),
+      cyl: signedSplitOptions(6, 0.25),
       axis: axisOptions(0, 180),
       add: addPowerOptions(0.25, 3.5, 0.25),
     }),

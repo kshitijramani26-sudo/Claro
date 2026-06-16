@@ -171,12 +171,12 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
     .meta-band { display: flex; gap: 0; margin-top: 14px; border: 1px solid #ECE6F4; border-radius: 8px; overflow: hidden; }
     .meta-cell { flex: 1; padding: 10px 14px; border-right: 1px solid #ECE6F4; }
     .meta-cell:last-child { border-right: none; }
-    .meta-label { font-size: 10px; font-weight: 600; color: #9AA0AC; letter-spacing: 0.5px; text-transform: uppercase; }
+    .meta-label { font-size: 10px; font-weight: 600; color: #6B7280; letter-spacing: 0.5px; text-transform: uppercase; }
     .meta-value { font-size: 13px; font-weight: 700; color: #0F1222; margin-top: 3px; }
 
     /* ── Bill To ── */
     .bill-to { margin-top: 18px; }
-    .section-label { font-size: 10px; font-weight: 700; color: #9AA0AC; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }
+    .section-label { font-size: 10px; font-weight: 700; color: #6B7280; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }
     .customer-name { font-size: 14.5px; font-weight: 700; color: #0F1222; }
     .customer-phone { font-size: 12px; color: #6B7280; margin-top: 2px; }
 
@@ -234,7 +234,7 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
     .rx-meta span { font-weight: 700; color: #0F1222; margin-right: 15px; }
 
     /* ── Footer ── */
-    .footer { text-align: center; color: #9AA0AC; font-size: 11px; margin-top: 28px;
+    .footer { text-align: center; color: #6B7280; font-size: 11px; margin-top: 28px;
       padding-top: 14px; border-top: 1px dashed #E3E5EC; }
   </style></head>
   <body>
@@ -381,11 +381,11 @@ export function invoiceHtml(bill: BillResult, business: Business | null, _opts: 
       </div>
     </div>
 
-    <div style="margin-top:14px; text-align:center; font-size:11px; color:#9AA0AC; font-style:italic;">
+    <div style="margin-top:14px; text-align:center; font-size:11px; color:#6B7280; font-style:italic;">
       This is a digitally generated invoice and does not require a signature.
     </div>
 
-    <div class="footer">Thank you for your business &nbsp;·&nbsp; Powered by Claro</div>
+    <div class="footer">Thank you for your business &nbsp;·&nbsp; <span style="color:#2D1150; font-weight:700;">Powered by Claro</span></div>
   </body></html>`;
 }
 

@@ -96,7 +96,9 @@ function mapBill(w: WireBill): BillResult {
     amountReceived: r(w.amount_received_paise ?? 0), balanceDue: r(w.balance_due_paise ?? 0),
     date: formatDateDMY(w.created_at),
     items: w.items.map((i) => ({
-      name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.line_total_paise),
+      // Amount shown = original gross (qty x unit price). Discount is a single
+      // line against the bill total, never spread across item rows (misleading).
+      name: i.name, qty: i.qty, price: r(i.unit_price_paise), lineTotal: r(i.unit_price_paise * i.qty),
       hsnCode: i.hsn_code, taxRateBps: i.tax_rate_bps,
       taxable: i.taxable_paise != null ? r(i.taxable_paise) : undefined,
       taxPaise: i.tax_paise != null ? r(i.tax_paise) : undefined,
