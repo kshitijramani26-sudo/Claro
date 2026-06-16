@@ -56,6 +56,12 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         logger.warning("invoice PDF upload error: %s", exc)
         return None, "upload_error"
     if resp.status_code not in (200, 201):
-        logger.warning("invoice PDF upload failed: %s %s", resp.status_code, resp.text[:200])
-        return None, f"http_{resp.status_code}:{resp.text[:120]}"
+        body = resp.text[:200]
+        logger.warning("invoice PDF upload failed: %s %s", resp.status_code, body)
+        # Supabase wraps auth failures in a 400 whose body signals 403/"signature
+        # verification failed" ⇒ the service-role key is wrong/mismatched.
+        low = body.lower()
+        if "signature" in low or "unauthorized" in low or '"403"' in low or "jwt" in low:
+            return None, "bad_service_key"
+        return None, f"http_{resp.status_code}"
     return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
