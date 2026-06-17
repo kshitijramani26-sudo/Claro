@@ -30,6 +30,24 @@ def storage_enabled() -> bool:
     return bool(s.supabase_service_role_key and supabase_base_url())
 
 
+def _key_claims() -> str:
+    """Non-secret diagnostic: decode the configured key's JWT payload (ref/role)
+    WITHOUT verifying. Reveals project/role mismatches without exposing the secret."""
+    import base64
+    import json
+
+    key = (get_settings().supabase_service_role_key or "").strip()
+    parts = key.split(".")
+    if len(parts) != 3:
+        return f"notjwt(len={len(key)})"
+    try:
+        pad = parts[1] + "=" * (-len(parts[1]) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(pad))
+        return f"ref={payload.get('ref')},role={payload.get('role')}"
+    except Exception:
+        return "undecodable"
+
+
 async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
     """Upsert the PDF into the public invoice bucket. Returns (public_url, reason);
     url is None on any failure, reason names the cause for diagnostics."""
@@ -62,6 +80,6 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         # verification failed" ⇒ the service-role key is wrong/mismatched.
         low = body.lower()
         if "signature" in low or "unauthorized" in low or '"403"' in low or "jwt" in low:
-            return None, "bad_service_key"
+            return None, f"bad_service_key[{_key_claims()}]"
         return None, f"http_{resp.status_code}"
     return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
