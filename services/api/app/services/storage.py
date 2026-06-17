@@ -80,6 +80,6 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         # verification failed" ⇒ the service-role key is wrong/mismatched.
         low = body.lower()
         if "signature" in low or "unauthorized" in low or '"403"' in low or "jwt" in low:
-            return None, f"bad_service_key[{_key_claims()}]"
-        return None, f"http_{resp.status_code}"
+            return None, f"bad_service_key[{_key_claims()}|{body[:90]}]"
+        return None, f"http_{resp.status_code}:{body[:90]}"
     return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
