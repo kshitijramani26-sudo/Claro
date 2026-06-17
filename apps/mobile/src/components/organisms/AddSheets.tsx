@@ -97,16 +97,23 @@ export function AddCreditSheet() {
   );
 }
 
+/** Add a new inventory item, or edit an existing one. In edit mode for an
+ *  untracked (catalogue-only) item, entering a quantity promotes it to a
+ *  stock-managed item (the server flips `tracked` when qty is set). */
 export function AddInventorySheet() {
   const theme = usePageTheme('stock');
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const flashToast = useAppStore((s) => s.flashToast);
   const refresh = useAppStore((s) => s.refresh);
-  const [name, setName] = useState('');
-  const [qty, setQty] = useState('');
-  const [threshold, setThreshold] = useState('');
+  const isEdit = useAppStore((s) => s.overlay === 'editInventory');
+  const item = useAppStore((s) => s.selInventoryItem);
+  const editing = isEdit ? item : null;
+
+  const [name, setName] = useState(editing?.name ?? '');
+  const [qty, setQty] = useState(editing && editing.tracked ? String(editing.qty) : '');
+  const [threshold, setThreshold] = useState(editing ? String(editing.threshold) : '');
   const [cost, setCost] = useState('');
-  const [selling, setSelling] = useState('');
+  const [selling, setSelling] = useState(editing ? String(editing.price) : '');
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -117,15 +124,27 @@ export function AddInventorySheet() {
     }
     setSaving(true);
     try {
-      await api.addInventory({
-        name: name.trim(),
-        qty: Math.max(0, parseInt(qty, 10) || 0),
-        threshold: Math.max(0, parseInt(threshold, 10) || 10),
-        costRupees: parseFloat(cost) || 0,
-        priceRupees: price,
-      });
+      if (editing) {
+        const patch: { name: string; priceRupees: number; threshold: number; qty?: number; costRupees?: number } = {
+          name: name.trim(),
+          priceRupees: price,
+          threshold: Math.max(0, parseInt(threshold, 10) || editing.threshold),
+        };
+        if (qty.trim() !== '') patch.qty = Math.max(0, parseInt(qty, 10) || 0); // sets qty ⇒ server promotes to tracked
+        if (cost.trim() !== '') patch.costRupees = parseFloat(cost) || 0;
+        await api.patchInventory(editing.id, patch);
+        flashToast(editing.tracked ? 'Item updated' : 'Stock added — now tracked');
+      } else {
+        await api.addInventory({
+          name: name.trim(),
+          qty: Math.max(0, parseInt(qty, 10) || 0),
+          threshold: Math.max(0, parseInt(threshold, 10) || 10),
+          costRupees: parseFloat(cost) || 0,
+          priceRupees: price,
+        });
+        flashToast('Item added to inventory');
+      }
       refresh();
-      flashToast('Item added to inventory');
       closeOverlay();
     } catch (e) {
       flashToast((e as Error).message);
@@ -134,18 +153,23 @@ export function AddInventorySheet() {
   };
 
   return (
-    <BottomSheet title="Add Inventory" onClose={closeOverlay}>
+    <BottomSheet title={editing ? 'Edit item' : 'Add Inventory'} onClose={closeOverlay}>
       <View style={{ gap: 12 }}>
+        {editing && !editing.tracked ? (
+          <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary, lineHeight: 18 }}>
+            This is a custom item with no stock tracked. Add a quantity to start managing its stock.
+          </Text>
+        ) : null}
         <Field placeholder="Item name" value={name} onChangeText={setName} accent={theme.accent} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Field placeholder="Quantity" value={qty} onChangeText={setQty} accent={theme.accent} keyboardType="number-pad" flex />
+          <Field placeholder={editing && !editing.tracked ? 'Add quantity' : 'Quantity'} value={qty} onChangeText={setQty} accent={theme.accent} keyboardType="number-pad" flex />
           <Field placeholder="Low-stock threshold" value={threshold} onChangeText={setThreshold} accent={theme.accent} keyboardType="number-pad" flex />
         </View>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Field placeholder="Cost price (₹)" value={cost} onChangeText={setCost} accent={theme.accent} keyboardType="number-pad" flex />
           <Field placeholder="Selling price (₹)" value={selling} onChangeText={setSelling} accent={theme.accent} keyboardType="number-pad" flex />
         </View>
-        <PrimaryButton label={saving ? 'Saving…' : 'Add item'} disabled={saving} onPress={save} style={{ marginTop: 8 }} />
+        <PrimaryButton label={saving ? 'Saving…' : editing ? 'Save changes' : 'Add item'} disabled={saving} onPress={save} style={{ marginTop: 8 }} />
       </View>
     </BottomSheet>
   );

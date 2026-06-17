@@ -8,10 +8,13 @@ import type { InventoryItem } from '@/data/types';
 import { Colors } from '@/theme/tokens';
 import { Font, tnum } from '@/theme/typography';
 
-/** Inventory list row — neutral tile, qty turns amber + "Low stock" badge when low. */
-export function InventoryRow({ item, last, onDelete }: { item: InventoryItem; last?: boolean; onDelete?: () => void }) {
+/** Inventory list row — neutral tile, qty turns amber + "Low stock" badge when low.
+ *  Untracked (catalogue-only) items show a "Custom item" hint instead of a quantity. */
+export function InventoryRow({ item, last, onPress, onDelete }: { item: InventoryItem; last?: boolean; onPress?: () => void; onDelete?: () => void }) {
   return (
-    <View
+    <Tap
+      onPress={onPress}
+      disabled={!onPress}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -27,15 +30,16 @@ export function InventoryRow({ item, last, onDelete }: { item: InventoryItem; la
           {item.name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
-          <Text
-            style={[
-              { fontFamily: Font.semibold, fontSize: 12.5, color: item.low ? Colors.warning : Colors.textPrimary },
-              tnum,
-            ]}
-          >
-            {item.qty} in stock
-          </Text>
-          {item.low ? <Badge label="Low stock" bg={Colors.warningTile2} fg={Colors.warning} fontSize={11} radius={7} /> : null}
+          {item.tracked ? (
+            <>
+              <Text style={[{ fontFamily: Font.semibold, fontSize: 12.5, color: item.low ? Colors.warning : Colors.textPrimary }, tnum]}>
+                {item.qty} in stock
+              </Text>
+              {item.low ? <Badge label="Low stock" bg={Colors.warningTile2} fg={Colors.warning} fontSize={11} radius={7} /> : null}
+            </>
+          ) : (
+            <Text style={{ fontFamily: Font.semibold, fontSize: 12.5, color: Colors.textMuted }}>Custom item · no stock</Text>
+          )}
         </View>
       </View>
       <Money value={item.price} style={[{ fontFamily: Font.extrabold, fontSize: 16, color: Colors.textPrimary }, tnum]} />
@@ -44,6 +48,6 @@ export function InventoryRow({ item, last, onDelete }: { item: InventoryItem; la
           <Sym name="delete" size={20} color={Colors.textMuted} />
         </Tap>
       ) : null}
-    </View>
+    </Tap>
   );
 }

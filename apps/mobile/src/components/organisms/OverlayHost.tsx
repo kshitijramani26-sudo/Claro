@@ -32,6 +32,7 @@ export function OverlayHost() {
     case 'addCredit':
       return <AddCreditSheet />;
     case 'addInventory':
+    case 'editInventory':
       return <AddInventorySheet />;
     case 'addStaff':
       return <AddStaffSheet />;

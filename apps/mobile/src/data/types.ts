@@ -63,6 +63,8 @@ export interface InventoryItem {
   price: number;
   threshold: number;
   low: boolean;
+  /** false ⇒ catalogue-only custom item: no managed stock, always sellable, never low. */
+  tracked: boolean;
 }
 
 export interface StaffMember {
@@ -143,6 +145,10 @@ export interface CatalogItem {
   taxRateBps: number;
   /** Whether `price` already includes GST (MRP). */
   inclusive: boolean;
+  /** On-hand quantity (tracked items only). */
+  qty: number;
+  /** false ⇒ catalogue-only custom item: always sellable, no stock shown. */
+  tracked: boolean;
 }
 
 // ── Backend-era types (rupees at this layer; api.ts converts from paise) ──

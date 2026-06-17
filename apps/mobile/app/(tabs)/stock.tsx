@@ -21,6 +21,7 @@ export default function Stock() {
   const insets = useSafeAreaInsets();
   const emptyMode = useAppStore((s) => s.emptyMode);
   const openOverlay = useAppStore((s) => s.openOverlay);
+  const openEditInventory = useAppStore((s) => s.openEditInventory);
   const refresh = useAppStore((s) => s.refresh);
   const flashToast = useAppStore((s) => s.flashToast);
 
@@ -92,7 +93,7 @@ export default function Stock() {
             ) : (
               <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
                 {items.map((it, i) => (
-                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} onDelete={() => confirmDelete(it.id, it.name)} />
+                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} onPress={() => openEditInventory(it)} onDelete={() => confirmDelete(it.id, it.name)} />
                 ))}
               </Card>
             )}

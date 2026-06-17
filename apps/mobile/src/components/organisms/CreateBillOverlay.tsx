@@ -303,7 +303,7 @@ export function CreateBillOverlay() {
     const price = parseFloat(cb.nPrice) || 0;
     cbAddCustomItem(); // adds to bill + clears the fields (no-op if invalid)
     if (name && price > 0 && !(catalogData ?? []).some((c) => c.name.toLowerCase() === name.toLowerCase())) {
-      api.addInventory({ name, qty: 0, threshold: 0, costRupees: 0, priceRupees: price })
+      api.addInventory({ name, qty: 0, threshold: 0, costRupees: 0, priceRupees: price, tracked: false })
         .then(() => refresh())
         .catch(() => undefined);
     }

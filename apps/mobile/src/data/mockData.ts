@@ -75,14 +75,14 @@ export const khataTimeline: Record<string, KhataTransaction[]> = {
 export const inventoryStats: InventoryStats = { totalValue: 286400, skus: 142, lowCount: 3 };
 
 export const inventory: InventoryItem[] = [
-  { id: 'i1', name: 'Aashirvaad Atta 5kg', qty: 6, price: 250, threshold: 10, low: true },
-  { id: 'i2', name: 'Maggi Noodles 70g', qty: 4, price: 14, threshold: 24, low: true },
-  { id: 'i3', name: 'Surf Excel 1kg', qty: 3, price: 120, threshold: 12, low: true },
-  { id: 'i4', name: 'Tata Salt 1kg', qty: 48, price: 28, threshold: 20, low: false },
-  { id: 'i5', name: 'Amul Butter 100g', qty: 24, price: 56, threshold: 12, low: false },
-  { id: 'i6', name: 'Parle-G Biscuit', qty: 120, price: 10, threshold: 40, low: false },
-  { id: 'i7', name: 'Fortune Oil 1L', qty: 18, price: 140, threshold: 10, low: false },
-  { id: 'i8', name: 'Colgate 100g', qty: 30, price: 55, threshold: 15, low: false },
+  { id: 'i1', name: 'Aashirvaad Atta 5kg', qty: 6, price: 250, threshold: 10, low: true, tracked: true },
+  { id: 'i2', name: 'Maggi Noodles 70g', qty: 4, price: 14, threshold: 24, low: true, tracked: true },
+  { id: 'i3', name: 'Surf Excel 1kg', qty: 3, price: 120, threshold: 12, low: true, tracked: true },
+  { id: 'i4', name: 'Tata Salt 1kg', qty: 48, price: 28, threshold: 20, low: false, tracked: true },
+  { id: 'i5', name: 'Amul Butter 100g', qty: 24, price: 56, threshold: 12, low: false, tracked: true },
+  { id: 'i6', name: 'Parle-G Biscuit', qty: 120, price: 10, threshold: 40, low: false, tracked: true },
+  { id: 'i7', name: 'Fortune Oil 1L', qty: 18, price: 140, threshold: 10, low: false, tracked: true },
+  { id: 'i8', name: 'Colgate 100g', qty: 30, price: 55, threshold: 15, low: false, tracked: true },
 ];
 
 // Tab 4 — Staff
@@ -127,4 +127,6 @@ export const billCatalog: CatalogItem[] = inventory.map((i) => ({
   price: i.price,
   taxRateBps: 0,
   inclusive: true,
+  qty: i.qty,
+  tracked: i.tracked,
 }));

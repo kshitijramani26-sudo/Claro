@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { BrandName } from '@/theme/tokens';
 import type { TabName } from '@/theme/pageThemes';
-import type { Business, CatalogItem } from '@/data/types';
+import type { Business, CatalogItem, InventoryItem } from '@/data/types';
 
 /** RFC-ish v4 uuid for idempotency keys (no crypto dependency needed). */
 export function makeUuid(): string {
@@ -20,6 +20,7 @@ export type OverlayName =
   | 'staffDetail'
   | 'addCredit'
   | 'addInventory'
+  | 'editInventory'
   | 'addStaff'
   | 'invoice'
   | 'search'
@@ -56,6 +57,8 @@ export interface AppState {
   selStaff: string | null;
   /** Bill id for the read-only invoice overlay. */
   selBill: string | null;
+  /** Inventory item being edited in the inventory sheet (null ⇒ add mode). */
+  selInventoryItem: InventoryItem | null;
   /** Customer whose full activity page is open. */
   selCustomerActivity: { id: string; name: string; phone?: string; outstanding?: number } | null;
   /** Customer being settled (partial settlement sheet). */
@@ -146,6 +149,7 @@ interface AppActions {
   closeOverlay: () => void;
   openCustomer: (id: string) => void;
   openStaff: (id: string) => void;
+  openEditInventory: (item: InventoryItem) => void;
   openInvoice: (billId: string) => void;
   openSearch: () => void;
   openCustomerActivity: (id: string, name: string, phone?: string, outstanding?: number) => void;
@@ -182,6 +186,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   overlay: null,
   selCustomer: null,
   selStaff: null,
+  selInventoryItem: null,
   selBill: null,
   selCustomerActivity: null,
   selSettle: null,
@@ -206,6 +211,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   closeOverlay: () => set({ overlay: null }),
   openCustomer: (id) => set({ selCustomer: id, overlay: 'customer' }),
   openStaff: (id) => set({ selStaff: id, overlay: 'staffDetail' }),
+  openEditInventory: (item) => set({ selInventoryItem: item, overlay: 'editInventory' }),
   openInvoice: (billId) => set({ selBill: billId, overlay: 'invoice' }),
   openSearch: () => set({ overlay: 'search' }),
   openCustomerActivity: (id, name, phone, outstanding) => set({ selCustomerActivity: { id, name, phone, outstanding }, overlay: 'customerActivity' }),

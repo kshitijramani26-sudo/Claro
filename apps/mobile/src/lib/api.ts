@@ -254,22 +254,32 @@ const realApi = {
   },
   async getInventory(): Promise<InventoryItem[]> {
     const rows = await this.getInventoryRaw();
-    return rows.map((i) => ({ id: i.id, name: i.name, qty: i.qty_on_hand, price: r(i.price_paise), threshold: i.low_stock_threshold, low: i.low }));
+    return rows.map((i) => ({ id: i.id, name: i.name, qty: i.qty_on_hand, price: r(i.price_paise), threshold: i.low_stock_threshold, low: i.low, tracked: i.tracked }));
   },
   async getInventoryRaw(): Promise<{
     id: string; name: string; qty_on_hand: number; price_paise: number;
-    tax_rate_bps: number; price_is_tax_inclusive: boolean; low_stock_threshold: number; low: boolean;
+    tax_rate_bps: number; price_is_tax_inclusive: boolean; low_stock_threshold: number; low: boolean; tracked: boolean;
   }[]> {
     return request('/inventory');
   },
-  async addInventory(input: { name: string; qty: number; threshold: number; costRupees: number; priceRupees: number }): Promise<void> {
+  async addInventory(input: { name: string; qty: number; threshold: number; costRupees: number; priceRupees: number; tracked?: boolean }): Promise<void> {
     await request('/inventory', {
       method: 'POST',
       json: {
         name: input.name, qty_on_hand: input.qty, low_stock_threshold: input.threshold,
         cost_paise: Math.round(input.costRupees * 100), price_paise: Math.round(input.priceRupees * 100),
+        ...(input.tracked === false ? { tracked: false } : {}),
       },
     });
+  },
+  async patchInventory(itemId: string, patch: { name?: string; qty?: number; threshold?: number; costRupees?: number; priceRupees?: number }): Promise<void> {
+    const json: Record<string, unknown> = {};
+    if (patch.name !== undefined) json.name = patch.name;
+    if (patch.qty !== undefined) json.qty_on_hand = patch.qty;       // setting qty promotes untracked → tracked (server)
+    if (patch.threshold !== undefined) json.low_stock_threshold = patch.threshold;
+    if (patch.costRupees !== undefined) json.cost_paise = Math.round(patch.costRupees * 100);
+    if (patch.priceRupees !== undefined) json.price_paise = Math.round(patch.priceRupees * 100);
+    await request(`/inventory/${itemId}`, { method: 'PATCH', json });
   },
   async deleteInventory(itemId: string): Promise<void> {
     await request(`/inventory/${itemId}`, { method: 'DELETE' });
@@ -279,6 +289,7 @@ const realApi = {
     return rows.map((i) => ({
       id: i.id, name: i.name, price: r(i.price_paise),
       taxRateBps: i.tax_rate_bps, inclusive: i.price_is_tax_inclusive,
+      qty: i.qty_on_hand, tracked: i.tracked,
     }));
   },
 
@@ -746,17 +757,32 @@ const mockApi = {
       price_is_tax_inclusive: true,
       low_stock_threshold: i.threshold,
       low: i.low,
+      tracked: i.tracked,
     }));
   },
-  async addInventory(input: { name: string; qty: number; threshold: number; costRupees: number; priceRupees: number }): Promise<void> {
+  async addInventory(input: { name: string; qty: number; threshold: number; costRupees: number; priceRupees: number; tracked?: boolean }): Promise<void> {
+    const tracked = input.tracked !== false;
     mInventory.unshift({
       id: `i-${mInventory.length + 1}`,
       name: input.name,
       qty: input.qty,
       price: input.priceRupees,
       threshold: input.threshold,
-      low: input.qty <= input.threshold,
+      low: tracked && input.qty <= input.threshold,
+      tracked,
     });
+  },
+  async patchInventory(itemId: string, patch: { name?: string; qty?: number; threshold?: number; costRupees?: number; priceRupees?: number }): Promise<void> {
+    const item = mInventory.find((i) => i.id === itemId);
+    if (!item) return;
+    if (patch.name !== undefined) item.name = patch.name;
+    if (patch.priceRupees !== undefined) item.price = patch.priceRupees;
+    if (patch.threshold !== undefined) item.threshold = patch.threshold;
+    if (patch.qty !== undefined) {
+      item.qty = patch.qty;
+      item.tracked = true; // setting qty promotes untracked → tracked
+    }
+    item.low = item.tracked && item.qty <= item.threshold;
   },
   async deleteInventory(itemId: string): Promise<void> {
     mInventory = mInventory.filter((i) => i.id !== itemId);
@@ -768,6 +794,8 @@ const mockApi = {
       price: i.price,
       taxRateBps: 0,
       inclusive: true,
+      qty: i.qty,
+      tracked: i.tracked,
     }));
   },
   async getStaff(): Promise<StaffMember[]> {
