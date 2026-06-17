@@ -61,17 +61,17 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         return None, "no_supabase_url"
     url = f"{base}/storage/v1/object/{s.invoice_bucket}/{path}"
     key = s.supabase_service_role_key.strip()
+    # Storage requires a JWT in Authorization (signed by the project's active JWT
+    # signing key) AND the apikey. A legacy `service_role` JWT works only while the
+    # legacy JWT secret is the active signing key; new sb_secret_ keys are not JWTs
+    # and are rejected here. See DECISIONS 2026-06-17 (FIX 2).
     headers = {
+        "Authorization": f"Bearer {key}",
         "apikey": key,
         "Content-Type": "application/pdf",
         "x-upsert": "true",
         "cache-control": "3600",
     }
-    # Legacy keys are JWTs and must also ride in Authorization. New secret keys
-    # (sb_secret_…) are NOT JWTs — sending them as a Bearer token makes Storage's
-    # JWT parser fail ("Invalid Compact JWS"), so pass them via apikey only.
-    if key.count(".") == 2:
-        headers["Authorization"] = f"Bearer {key}"
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.post(url, content=pdf, headers=headers)
@@ -85,6 +85,6 @@ async def upload_invoice_pdf(path: str, pdf: bytes) -> tuple[str | None, str]:
         # verification failed" ⇒ the service-role key is wrong/mismatched.
         low = body.lower()
         if "signature" in low or "unauthorized" in low or '"403"' in low or "jwt" in low:
-            return None, f"bad_service_key[{_key_claims()}|{body[:90]}]"
-        return None, f"http_{resp.status_code}:{body[:90]}"
+            return None, f"bad_service_key[{_key_claims()}]"
+        return None, f"http_{resp.status_code}"
     return f"{base}/storage/v1/object/public/{s.invoice_bucket}/{path}", "ok"
