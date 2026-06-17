@@ -86,6 +86,7 @@ CREATE TABLE inventory_items (
     cost_paise             bigint NOT NULL DEFAULT 0 CHECK (cost_paise >= 0),
     qty_on_hand            integer NOT NULL DEFAULT 0,
     low_stock_threshold    integer NOT NULL DEFAULT 10,
+    tracked                boolean NOT NULL DEFAULT true,  -- false => catalogue-only, no managed stock
     created_at             timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX inventory_items_biz_idx ON inventory_items(business_id);

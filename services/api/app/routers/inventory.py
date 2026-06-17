@@ -10,9 +10,10 @@ from ..schemas import InventoryCreate, InventoryPatch, InventoryRead, InventoryS
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
+# Untracked (catalogue-only) items are never "low" — they have no managed stock.
 _COLS = """id, name, hsn_code, tax_rate_bps, price_paise, price_is_tax_inclusive,
-           cost_paise, qty_on_hand, low_stock_threshold,
-           (qty_on_hand <= low_stock_threshold) AS low"""
+           cost_paise, qty_on_hand, low_stock_threshold, tracked,
+           (tracked AND qty_on_hand <= low_stock_threshold) AS low"""
 
 
 @router.get("", response_model=list[InventoryRead])
@@ -20,7 +21,7 @@ async def list_inventory(biz: CurrentBusiness = Depends(get_current_business)) -
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(
             f"""SELECT {_COLS} FROM inventory_items WHERE business_id = $1
-                ORDER BY (qty_on_hand <= low_stock_threshold) DESC, name""",
+                ORDER BY (tracked AND qty_on_hand <= low_stock_threshold) DESC, name""",
             biz.id,
         )
     return [InventoryRead(**dict(r)) for r in rows]
@@ -34,7 +35,7 @@ async def inventory_stats(biz: CurrentBusiness = Depends(get_current_business)) 
             # selling price — shows the capital tied up in inventory.
             """SELECT COALESCE(sum(qty_on_hand::bigint * cost_paise), 0) AS total_value,
                       count(*) AS skus,
-                      count(*) FILTER (WHERE qty_on_hand <= low_stock_threshold) AS low_count
+                      count(*) FILTER (WHERE tracked AND qty_on_hand <= low_stock_threshold) AS low_count
                FROM inventory_items WHERE business_id = $1""",
             biz.id,
         )
@@ -48,11 +49,11 @@ async def create_item(payload: InventoryCreate, biz: CurrentBusiness = Depends(g
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
             f"""INSERT INTO inventory_items (business_id, name, hsn_code, tax_rate_bps, price_paise,
-                                             price_is_tax_inclusive, cost_paise, qty_on_hand, low_stock_threshold)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                                             price_is_tax_inclusive, cost_paise, qty_on_hand, low_stock_threshold, tracked)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                 RETURNING {_COLS}""",
             biz.id, payload.name, payload.hsn_code, payload.tax_rate_bps, payload.price_paise,
-            inclusive, payload.cost_paise, payload.qty_on_hand, threshold,
+            inclusive, payload.cost_paise, payload.qty_on_hand, threshold, payload.tracked,
         )
         if payload.qty_on_hand > 0:
             await conn.execute(
@@ -66,6 +67,9 @@ async def create_item(payload: InventoryCreate, biz: CurrentBusiness = Depends(g
 @router.patch("/{item_id}", response_model=InventoryRead)
 async def patch_item(item_id: UUID, payload: InventoryPatch, biz: CurrentBusiness = Depends(get_current_business)) -> InventoryRead:
     updates = payload.model_dump(exclude_none=True)
+    # Adding a quantity to a catalogue-only item promotes it to a stock-managed item.
+    if "qty_on_hand" in updates:
+        updates["tracked"] = True
     async with biz_txn(biz.id) as conn:
         if "qty_on_hand" in updates:
             old = await conn.fetchval(

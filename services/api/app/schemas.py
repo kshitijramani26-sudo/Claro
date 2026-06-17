@@ -91,6 +91,7 @@ class InventoryCreate(BaseModel):
     cost_paise: int = Field(default=0, ge=0)
     qty_on_hand: int = Field(default=0, ge=0)
     low_stock_threshold: int | None = None  # default: business low_stock_default
+    tracked: bool = True  # false ⇒ catalogue-only custom item: always sellable, no managed stock
 
 
 class InventoryPatch(BaseModel):
@@ -102,6 +103,7 @@ class InventoryPatch(BaseModel):
     cost_paise: int | None = Field(default=None, ge=0)
     qty_on_hand: int | None = Field(default=None, ge=0)
     low_stock_threshold: int | None = None
+    tracked: bool | None = None
 
 
 class InventoryRead(BaseModel):
@@ -114,6 +116,7 @@ class InventoryRead(BaseModel):
     cost_paise: int
     qty_on_hand: int
     low_stock_threshold: int
+    tracked: bool
     low: bool
 
 

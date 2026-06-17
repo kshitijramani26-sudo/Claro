@@ -157,9 +157,10 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
         # ── Preconditions (§2): validate BEFORE any write ──
         inv_ids = [l.inventory_item_id for l in payload.items if l.inventory_item_id is not None]
         inv: dict[UUID, asyncpg.Record] = {}
+        untracked_ids: set[UUID] = set()  # catalogue-only items: sellable, no managed stock
         if inv_ids:
             rows = await conn.fetch(
-                """SELECT id, name, hsn_code, tax_rate_bps, price_is_tax_inclusive, qty_on_hand
+                """SELECT id, name, hsn_code, tax_rate_bps, price_is_tax_inclusive, qty_on_hand, tracked
                    FROM inventory_items
                    WHERE business_id = $1 AND id = ANY($2::uuid[])
                    FOR UPDATE""",
@@ -169,10 +170,11 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
             for iid in inv_ids:
                 if iid not in inv:
                     raise CrossBusinessReferenceError("inventory_item", iid)
+            untracked_ids = {iid for iid, r in inv.items() if not r["tracked"]}
             if not b["allow_negative_stock"]:
                 want: dict[UUID, int] = {}
                 for line in payload.items:
-                    if line.inventory_item_id is not None:
+                    if line.inventory_item_id is not None and line.inventory_item_id not in untracked_ids:
                         want[line.inventory_item_id] = want.get(line.inventory_item_id, 0) + line.qty
                 for iid, qty in want.items():
                     if inv[iid]["qty_on_hand"] < qty:
@@ -312,8 +314,10 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
             )
 
         # ── ENTRY 1: guarded stock reduction (race-safe; never below 0) ──
+        # Untracked (catalogue-only) lines never touch stock — treated like ad-hoc
+        # lines for inventory, even though they are real catalogue items.
         for line in totals.lines:
-            if line.inventory_item_id is None:
+            if line.inventory_item_id is None or line.inventory_item_id in untracked_ids:
                 continue
             updated = await conn.fetchrow(
                 """UPDATE inventory_items SET qty_on_hand = qty_on_hand - $3

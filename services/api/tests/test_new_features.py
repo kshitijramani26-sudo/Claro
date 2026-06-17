@@ -319,3 +319,26 @@ async def test_update_bill_status(biz):
     assert updated2.order_status == "delivered"
 
 
+# FIX 1 — untracked (catalogue-only) custom items: always sellable, no stock effect,
+# never low; adding a quantity promotes them to tracked.
+async def test_untracked_item_sells_without_stock_and_promotes(biz):
+    from app.routers.inventory import create_item, patch_item
+    from app.schemas import InventoryCreate, InventoryPatch
+
+    item = await create_item(InventoryCreate(name="Custom Cleaner", price_paise=12000, tracked=False), biz)
+    assert item.tracked is False and item.low is False
+
+    # Sells even though qty_on_hand is 0 (no oversell guard, no decrement).
+    bill = await confirm_bill(biz, bill_payload(
+        items=[BillLineCreate(inventory_item_id=item.id, name="Custom Cleaner", qty=3, unit_price_paise=12000)],
+        payment_mode="CASH", gst_mode="non_gst",
+    ))
+    assert bill.grand_total_paise == 36000
+    assert await _fetch(biz, "SELECT qty_on_hand FROM inventory_items WHERE id=$1", item.id) == 0
+    assert await _fetch(biz, "SELECT count(*) FROM stock_ledger WHERE item_id=$1", item.id) == 0
+
+    # Adding a quantity flips it to tracked + records the stock.
+    promoted = await patch_item(item.id, InventoryPatch(qty_on_hand=5), biz=biz)
+    assert promoted.tracked is True and promoted.qty_on_hand == 5
+
+

@@ -30,10 +30,12 @@ note: str | None
 2. `payment_mode == CREDIT` ⇒ `customer_id` present and belongs to `business_id`.
 3. Every `inventory_item_id` (when not None) exists and belongs to `business_id`.
 4. `staff_id` (when present) exists and belongs to `business_id`.
-5. For each inventory line: `item.qty_on_hand >= line.qty` (**no overselling**) → else `InsufficientStockError(item_id, requested, available)`.
+5. For each **tracked** inventory line: `item.qty_on_hand >= line.qty` (**no overselling**) → else `InsufficientStockError(item_id, requested, available)`.
 6. `discount_paise <= subtotal`.
 
 > If `business.allow_negative_stock` (default **false**), precondition 5 is skipped.
+
+> **Untracked items (`tracked = false`):** catalogue-only items (e.g. a custom line typed during billing and saved for re-use). They carry a name + selling price but **no managed stock** — precondition 5 does not apply (always sellable), and ENTRY 1 writes **no** StockLedger row and does **not** decrement qty. They behave like an ad-hoc line for stock, yet are real catalogue items that re-appear in search. Editing one to set a quantity flips `tracked = true`, after which it is fully stock-managed.
 
 ## 3. Money computation (server is source of truth — never trust client totals)
 ```

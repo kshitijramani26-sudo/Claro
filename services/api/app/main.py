@@ -6,12 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .db import close_pool, init_pool
 from .errors import install_error_handlers
+from .migrate import run_startup_migrations
 from .routers import auth, analytics, bills, business, customers, home, inventory, khata, payment_methods, staff
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_pool()
+    await run_startup_migrations()
     yield
     await close_pool()
 
