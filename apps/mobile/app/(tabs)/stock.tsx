@@ -22,6 +22,7 @@ export default function Stock() {
   const emptyMode = useAppStore((s) => s.emptyMode);
   const openOverlay = useAppStore((s) => s.openOverlay);
   const openEditInventory = useAppStore((s) => s.openEditInventory);
+  const isStaff = useAppStore((s) => s.business?.role === 'staff');
   const refresh = useAppStore((s) => s.refresh);
   const flashToast = useAppStore((s) => s.flashToast);
 
@@ -63,18 +64,20 @@ export default function Stock() {
           </Tap>
         ) : loading && items.length === 0 ? null : (
           <>
-            {/* Stock value hero — always shown (₹0 for a new shop) */}
-            <SummaryCard
-              icon="inventory_2"
-              tileBg={theme.tile}
-              tileFg={theme.accent}
-              label="Total stock value"
-              value={items.length === 0 ? 0 : stats?.totalValue ?? 0}
-              sub={`Across ${items.length === 0 ? 0 : stats?.skus ?? 0} active SKUs`}
-            />
+            {/* Stock value hero — capital tied up; hidden for staff (cost/profit). */}
+            {isStaff ? null : (
+              <SummaryCard
+                icon="inventory_2"
+                tileBg={theme.tile}
+                tileFg={theme.accent}
+                label="Total stock value"
+                value={items.length === 0 ? 0 : stats?.totalValue ?? 0}
+                sub={`Across ${items.length === 0 ? 0 : stats?.skus ?? 0} active SKUs`}
+              />
+            )}
 
-            {/* Mini stats */}
-            <View style={{ flexDirection: 'row', gap: 11, marginTop: 11 }}>
+            {/* Mini stats — availability only (no cost) */}
+            <View style={{ flexDirection: 'row', gap: 11, marginTop: isStaff ? 0 : 11 }}>
               <StatTile icon="category" tileBg={theme.tile} tileFg={theme.accent} value={String(items.length === 0 ? 0 : stats?.skus ?? 0)} label="Total SKUs" />
               <StatTile icon="warning" tileBg={Colors.warningTile2} tileFg={Colors.warning} value={String(items.length === 0 ? 0 : stats?.lowCount ?? 0)} label="Low on stock" />
             </View>
@@ -93,7 +96,7 @@ export default function Stock() {
             ) : (
               <Card style={{ paddingVertical: 6, paddingHorizontal: 18, marginTop: 14 }}>
                 {items.map((it, i) => (
-                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} onPress={() => openEditInventory(it)} onDelete={() => confirmDelete(it.id, it.name)} />
+                  <InventoryRow key={it.id} item={it} last={i === items.length - 1} onPress={isStaff ? undefined : () => openEditInventory(it)} onDelete={isStaff ? undefined : () => confirmDelete(it.id, it.name)} />
                 ))}
               </Card>
             )}
@@ -101,7 +104,7 @@ export default function Stock() {
         )}
       </ScrollView>
 
-      <PinnedCTA label="Add Inventory" icon="add" pageBg={theme.bg} onPress={() => openOverlay('addInventory')} />
+      {isStaff ? null : <PinnedCTA label="Add Inventory" icon="add" pageBg={theme.bg} onPress={() => openOverlay('addInventory')} />}
     </SafeAreaView>
   );
 }

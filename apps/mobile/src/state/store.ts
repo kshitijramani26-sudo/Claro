@@ -25,7 +25,8 @@ export type OverlayName =
   | 'invoice'
   | 'search'
   | 'customerActivity'
-  | 'settle';
+  | 'settle'
+  | 'team';
 
 export type PayMode = 'Cash' | 'UPI' | 'Credit';
 
@@ -62,7 +63,7 @@ export interface AppState {
   /** Customer whose full activity page is open. */
   selCustomerActivity: { id: string; name: string; phone?: string; outstanding?: number } | null;
   /** Customer being settled (partial settlement sheet). */
-  selSettle: { id: string; name: string; outstanding: number } | null;
+  selSettle: { id: string; name: string; outstanding: number; phone: string } | null;
   presence: Record<string, boolean>;
   cb: {
     items: BillItem[];
@@ -153,7 +154,7 @@ interface AppActions {
   openInvoice: (billId: string) => void;
   openSearch: () => void;
   openCustomerActivity: (id: string, name: string, phone?: string, outstanding?: number) => void;
-  openSettle: (id: string, name: string, outstanding: number) => void;
+  openSettle: (id: string, name: string, outstanding: number, phone?: string) => void;
   togglePresent: (staffId: string, base: boolean) => void;
   setPeriod: (period: AppState['period']) => void;
   setKhataSearch: (khataSearch: string) => void;
@@ -215,7 +216,7 @@ export const useAppStore = create<AppState & AppActions>((set, get) => ({
   openInvoice: (billId) => set({ selBill: billId, overlay: 'invoice' }),
   openSearch: () => set({ overlay: 'search' }),
   openCustomerActivity: (id, name, phone, outstanding) => set({ selCustomerActivity: { id, name, phone, outstanding }, overlay: 'customerActivity' }),
-  openSettle: (id, name, outstanding) => set({ selSettle: { id, name, outstanding }, overlay: 'settle' }),
+  openSettle: (id, name, outstanding, phone = '') => set({ selSettle: { id, name, outstanding, phone }, overlay: 'settle' }),
   togglePresent: (staffId, base) =>
     set((s) => {
       const current = s.presence[staffId] ?? base;

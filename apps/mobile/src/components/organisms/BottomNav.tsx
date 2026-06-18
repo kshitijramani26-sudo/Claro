@@ -27,10 +27,13 @@ export function BottomNav() {
   const tab = useAppStore((s) => s.tab);
   const overlay = useAppStore((s) => s.overlay);
   const setTab = useAppStore((s) => s.setTab);
+  const role = useAppStore((s) => s.business?.role ?? 'owner');
   const insets = useSafeAreaInsets();
 
   if (overlay) return null;
 
+  // Staff have no Analytics (the tab is hidden and the API returns 403).
+  const tabs = role === 'staff' ? TABS.filter((t) => t.key !== 'analytics') : TABS;
   const theme = PageThemes[tab];
   return (
     <View
@@ -43,7 +46,7 @@ export function BottomNav() {
         borderTopColor: Colors.navBorder,
       }}
     >
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const active = t.key === tab;
         const color = active ? theme.accent : theme.navIdle;
         return (

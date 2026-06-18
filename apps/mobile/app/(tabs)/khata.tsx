@@ -11,6 +11,7 @@ import { DemoToggle } from '@/components/organisms/DemoToggle';
 import { PinnedCTA } from '@/components/organisms/PinnedCTA';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { shareSettleThankYou } from '@/lib/settleThanks';
 import { usePageTheme } from '@/theme/pageThemes';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, Type, tnum } from '@/theme/typography';
@@ -27,6 +28,8 @@ export default function Khata() {
   const openOverlay = useAppStore((s) => s.openOverlay);
   const openSettle = useAppStore((s) => s.openSettle);
   const flashToast = useAppStore((s) => s.flashToast);
+  const refresh = useAppStore((s) => s.refresh);
+  const business = useAppStore((s) => s.business);
   const [searchFocused, setSearchFocused] = useState(false);
 
   const { data, loading, error, reload } = useApi(() => api.getKhata());
@@ -40,6 +43,24 @@ export default function Khata() {
       await Linking.openURL(waUrl);
     } catch {
       flashToast('Could not open WhatsApp for ' + name.split(' ')[0]);
+    }
+  };
+
+  // One tap: settle the full outstanding AND open a WhatsApp thank-you.
+  const settleAndThank = async (id: string, name: string, amount: number, phone: string) => {
+    try {
+      await api.settleUp(id, amount);
+      refresh();
+      flashToast('Settled — opening thank-you');
+      await shareSettleThankYou({
+        shopName: business?.name ?? 'our shop',
+        customerName: name,
+        paidRupees: amount,
+        balanceRupees: 0,
+        phone,
+      });
+    } catch (e) {
+      flashToast((e as Error).message);
     }
   };
 
@@ -128,7 +149,8 @@ export default function Khata() {
                         accent={theme.accent}
                         tile={theme.tile}
                         onPress={() => openCustomer(c.id)}
-                        onSettle={() => openSettle(c.id, c.name, c.amount)}
+                        onSettle={() => openSettle(c.id, c.name, c.amount, c.phone)}
+                        onSettleThank={() => settleAndThank(c.id, c.name, c.amount, c.phone)}
                         onRemind={() => remind(c.id, c.name)}
                       />
                     ))}

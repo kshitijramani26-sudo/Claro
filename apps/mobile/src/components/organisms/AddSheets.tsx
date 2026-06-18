@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { BottomSheet } from './BottomSheet';
-import { PrimaryButton } from '@/components/atoms/Button';
+import { PrimaryButton, OutlineButton } from '@/components/atoms/Button';
 import { Tap } from '@/components/atoms/Tap';
+import { WhatsAppIcon } from '@/components/atoms/WhatsAppIcon';
 import { ContactSuggest } from '@/components/molecules/ContactSuggest';
 import { SegmentedControl } from '@/components/atoms/SegmentedControl';
 import { api } from '@/lib/api';
 import { formatINR } from '@/lib/format';
+import { shareSettleThankYou } from '@/lib/settleThanks';
 import { Colors, Radius } from '@/theme/tokens';
 import { Font, tnum } from '@/theme/typography';
 import { usePageTheme } from '@/theme/pageThemes';
@@ -220,6 +222,7 @@ export function AddStaffSheet() {
 export function SettleSheet() {
   const theme = usePageTheme('khata');
   const target = useAppStore((s) => s.selSettle);
+  const business = useAppStore((s) => s.business);
   const closeOverlay = useAppStore((s) => s.closeOverlay);
   const flashToast = useAppStore((s) => s.flashToast);
   const refresh = useAppStore((s) => s.refresh);
@@ -227,6 +230,8 @@ export function SettleSheet() {
   const [amount, setAmount] = useState(String(outstanding));
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
+  // After a successful settle we keep the sheet open and offer a thank-you.
+  const [done, setDone] = useState<{ paid: number; balance: number } | null>(null);
 
   const save = async () => {
     if (!target) return;
@@ -244,12 +249,49 @@ export function SettleSheet() {
       await api.settleUp(target.id, amt, mode);
       refresh();
       flashToast('Settled ' + formatINR(amt));
-      closeOverlay();
+      setDone({ paid: amt, balance: Math.max(0, outstanding - amt) });
     } catch (e) {
       flashToast((e as Error).message);
       setSaving(false);
     }
   };
+
+  const sendThankYou = async () => {
+    if (!target || !done) return;
+    try {
+      await shareSettleThankYou({
+        shopName: business?.name ?? 'our shop',
+        customerName: target.name,
+        paidRupees: done.paid,
+        balanceRupees: done.balance,
+        phone: target.phone,
+      });
+    } catch {
+      flashToast('Could not open WhatsApp');
+    }
+    closeOverlay();
+  };
+
+  if (done) {
+    return (
+      <BottomSheet title="Payment recorded" onClose={closeOverlay}>
+        <View style={{ gap: 14, paddingTop: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontFamily: Font.medium, fontSize: 13, color: Colors.textSecondary }}>
+              {done.balance > 0 ? 'Remaining balance' : 'Account cleared'}
+            </Text>
+            <Text style={[{ fontFamily: Font.extrabold, fontSize: 15, color: done.balance > 0 ? Colors.danger : Colors.success }, tnum]}>
+              {done.balance > 0 ? formatINR(done.balance) : formatINR(done.paid)}
+            </Text>
+          </View>
+          <OutlineButton label="Send thank-you on WhatsApp" iconNode={<WhatsAppIcon size={18} />} onPress={sendThankYou} />
+          <Tap onPress={closeOverlay} style={{ alignItems: 'center', paddingVertical: 8 }}>
+            <Text style={{ fontFamily: Font.bold, fontSize: 13, color: Colors.textSecondary }}>Done</Text>
+          </Tap>
+        </View>
+      </BottomSheet>
+    );
+  }
 
   return (
     <BottomSheet title={`Settle ${target?.name ?? ''}`.trim()} onClose={closeOverlay}>

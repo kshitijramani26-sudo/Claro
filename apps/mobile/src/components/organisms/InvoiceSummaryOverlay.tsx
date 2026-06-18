@@ -115,6 +115,14 @@ export function InvoiceSummaryOverlay() {
                 orderStatus={bill.orderStatus}
                 deliveryDate={bill.deliveryDate}
               />
+              {business?.role !== 'staff' && bill.billedBy ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingHorizontal: 2 }}>
+                  <Sym name="person" size={15} color={Colors.textMuted} />
+                  <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary }}>
+                    Billed by {bill.billedBy}
+                  </Text>
+                </View>
+              ) : null}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
                 <OutlineButton
                   label="Send on WhatsApp"

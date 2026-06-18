@@ -6,6 +6,7 @@ import { InvoiceSummaryOverlay } from './InvoiceSummaryOverlay';
 import { SearchOverlay } from './SearchOverlay';
 import { CustomerActivityOverlay } from './CustomerActivityOverlay';
 import { AddCreditSheet, AddInventorySheet, AddStaffSheet, SettleSheet } from './AddSheets';
+import { TeamOverlay } from './TeamOverlay';
 import { useAppStore } from '@/state/store';
 
 /**
@@ -38,6 +39,8 @@ export function OverlayHost() {
       return <AddStaffSheet />;
     case 'settle':
       return <SettleSheet />;
+    case 'team':
+      return <TeamOverlay />;
     default:
       return null;
   }

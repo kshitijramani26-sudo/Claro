@@ -23,10 +23,12 @@ import type {
   PaymentMethod,
   PeriodKey,
   PrescriptionResult,
+  Role,
   Shop,
   StaffDetail,
   StaffMember,
   Summary,
+  TeamMember,
   UpiInfo,
 } from '@/data/types';
 
@@ -35,7 +37,7 @@ interface WireBusiness {
   id: string; name: string; owner_name: string; industry: string; state_code: string;
   address: string; gst_registered: boolean; gstin: string; gst_default_mode: 'gst' | 'non_gst';
   price_includes_tax: boolean; invoice_prefix: string; low_stock_default: number;
-  email: string; phone: string;
+  email: string; phone: string; role?: string;
 }
 interface WirePrescription {
   id: string; business_id: string; customer_id: string; bill_id?: string | null;
@@ -61,6 +63,7 @@ interface WireBill {
   prescription?: WirePrescription | null;
   order_status?: 'pending' | 'ready' | 'delivered';
   delivery_date?: string | null;
+  billed_by_name?: string;
 }
 
 function mapBusiness(w: WireBusiness): Business {
@@ -69,7 +72,7 @@ function mapBusiness(w: WireBusiness): Business {
     address: w.address, gstRegistered: w.gst_registered, gstin: w.gstin,
     gstDefaultMode: w.gst_default_mode, priceIncludesTax: w.price_includes_tax,
     invoicePrefix: w.invoice_prefix, lowStockDefault: w.low_stock_default,
-    email: w.email, phone: w.phone,
+    email: w.email, phone: w.phone, role: (w.role as Business['role']) ?? 'owner',
   };
 }
 
@@ -107,6 +110,7 @@ function mapBill(w: WireBill): BillResult {
     prescription: w.prescription ? mapPrescription(w.prescription) : null,
     orderStatus: w.order_status,
     deliveryDate: w.delivery_date ? formatDateDMY(w.delivery_date) : null,
+    billedBy: w.billed_by_name ?? '',
   };
 }
 
@@ -170,6 +174,22 @@ const realApi = {
   async getShop(): Promise<Shop> {
     const b = await this.getBusiness();
     return { name: b.name, owner: b.owner, industry: b.industry, gstRegistered: b.gstRegistered, gstin: b.gstin, phone: b.phone };
+  },
+
+  // ── team members ──
+  async getTeam(): Promise<TeamMember[]> {
+    const rows = await request<{ id: string; name: string; phone: string; role: Role; status: 'invited' | 'active'; is_self: boolean }[]>('/team');
+    return rows.map((m) => ({ id: m.id, name: m.name, phone: m.phone.replace(/^\+91/, ''), role: m.role, status: m.status, isSelf: m.is_self }));
+  },
+  async addMember(input: { name: string; phone: string; role: 'co_owner' | 'staff' }): Promise<void> {
+    await request('/team', { method: 'POST', json: { name: input.name, phone: input.phone, role: input.role } });
+  },
+  async removeMember(memberId: string): Promise<void> {
+    await request(`/team/${memberId}`, { method: 'DELETE' });
+  },
+  async getTeamActivity(): Promise<Activity[]> {
+    const rows = await request<{ id: string; title: string; sub: string; amount_paise: number; kind: Activity['kind']; at: string; bill_id: string | null }[]>('/team/activity');
+    return rows.map((a) => ({ id: a.id, title: a.title, sub: a.sub, amount: r(a.amount_paise), kind: a.kind, time: timeAgo(a.at), billId: a.bill_id }));
   },
 
   // ── payment methods ──
@@ -618,6 +638,18 @@ const mockApi = {
       gstin: mBusiness.gstin,
       phone: mBusiness.phone,
     };
+  },
+  async getTeam(): Promise<TeamMember[]> {
+    return [{ id: 'owner', name: mBusiness.owner_name, phone: mBusiness.phone, role: 'owner', status: 'active', isSelf: true }];
+  },
+  async addMember(_input: { name: string; phone: string; role: 'co_owner' | 'staff' }): Promise<void> {
+    return;
+  },
+  async removeMember(_memberId: string): Promise<void> {
+    return;
+  },
+  async getTeamActivity(): Promise<Activity[]> {
+    return this.getActivity(40);
   },
   async getPaymentMethods(): Promise<PaymentMethod[]> {
     return mPaymentMethods.map((m) => ({ id: m.id, upiId: m.upi_id, qrImageUrl: m.qr_image_url, label: m.label, isDefault: m.is_default }));

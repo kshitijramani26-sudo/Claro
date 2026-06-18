@@ -168,6 +168,19 @@ export interface Business {
   lowStockDefault: number;
   email: string;
   phone: string;
+  /** The signed-in member's role in this business. */
+  role: 'owner' | 'co_owner' | 'staff';
+}
+
+export type Role = 'owner' | 'co_owner' | 'staff';
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  phone: string;
+  role: Role;
+  status: 'invited' | 'active';
+  isSelf: boolean;
 }
 
 export interface PaymentMethod {
@@ -246,6 +259,8 @@ export interface BillResult {
   prescription?: PrescriptionResult | null;
   orderStatus?: 'pending' | 'ready' | 'delivered';
   deliveryDate?: string | null;
+  /** Audit: member who created the bill (shown to owner/co-owner). */
+  billedBy?: string;
 }
 
 export interface UpiInfo {

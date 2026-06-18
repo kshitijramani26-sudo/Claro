@@ -15,11 +15,14 @@ interface Props {
   tile: string;
   onPress: () => void;
   onSettle: () => void;
+  onSettleThank: () => void;
   onRemind: () => void;
 }
 
-/** Khata customer card — avatar, outstanding in red, Settle Up + WhatsApp Remind. */
-export function KhataRow({ customer, accent, tile, onPress, onSettle, onRemind }: Props) {
+const WA_GREEN = '#25D366';
+
+/** Khata customer card — avatar, outstanding in red, Settle Up (+ 1-tap thank-you) + Remind. */
+export function KhataRow({ customer, accent, tile, onPress, onSettle, onSettleThank, onRemind }: Props) {
   return (
     <Tap onPress={onPress}>
       <Card pad={18}>
@@ -47,8 +50,18 @@ export function KhataRow({ customer, accent, tile, onPress, onSettle, onRemind }
             </Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, alignItems: 'center' }}>
           <OutlineButton label="Settle Up" icon="paid" iconColor={accent} height={40} onPress={onSettle} style={{ flex: 1, borderRadius: 9 }} />
+          {/* One tap: settle in full + open WhatsApp thank-you. */}
+          <Tap
+            onPress={onSettleThank}
+            style={{
+              width: 44, height: 40, borderRadius: 9, borderWidth: 1.5, borderColor: WA_GREEN,
+              backgroundColor: `${WA_GREEN}14`, alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <WhatsAppIcon size={19} />
+          </Tap>
           <OutlineButton label="Remind" iconNode={<WhatsAppIcon size={17} />} height={40} onPress={onRemind} style={{ flex: 1, borderRadius: 9 }} />
         </View>
       </Card>

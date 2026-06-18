@@ -28,6 +28,7 @@ export default function Profile() {
   const brand = useBrand();
   const business = useAppStore((s) => s.business);
   const setBusiness = useAppStore((s) => s.setBusiness);
+  const openOverlay = useAppStore((s) => s.openOverlay);
   const setPhase = useAppStore((s) => s.setPhase);
   const setObStep = useAppStore((s) => s.setObStep);
   const flashToast = useAppStore((s) => s.flashToast);
@@ -292,6 +293,24 @@ export default function Profile() {
           <Input label="Email" value={email} onChangeText={setEmail} placeholder="you@example.com" focusColor={brand.brand} height={50} keyboardType="email-address" autoCapitalize="none" />
           <Select label="Language" value="English" options={['English']} onChange={() => undefined} placeholder="English" accent={brand.brand} height={50} />
         </Card>
+
+        {/* Team — owner & co-owner only */}
+        {business?.role !== 'staff' ? (
+          <Card pad={18}>
+            <Tap onPress={() => openOverlay('team')} style={{ flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+              <View style={{ width: 40, height: 40, borderRadius: Radius.tile, backgroundColor: brand.tint, alignItems: 'center', justifyContent: 'center' }}>
+                <Sym name="groups" size={21} color={brand.brand} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: Font.bold, fontSize: 15, color: Colors.textPrimary }}>Team</Text>
+                <Text style={{ fontFamily: Font.medium, fontSize: 12.5, color: Colors.textSecondary, marginTop: 1 }}>
+                  Add co-owners &amp; staff, manage access
+                </Text>
+              </View>
+              <Sym name="chevron_right" size={22} color={Colors.textMuted} />
+            </Tap>
+          </Card>
+        ) : null}
 
         {/* Preferences */}
         <Card pad={20} style={{ gap: 14 }}>
