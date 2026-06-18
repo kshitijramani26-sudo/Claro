@@ -45,6 +45,22 @@ CREATE TABLE businesses (
 );
 CREATE UNIQUE INDEX businesses_user_idx ON businesses(user_id);
 
+-- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ business_members (team) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+CREATE TABLE business_members (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id     uuid NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+    user_id         uuid REFERENCES users(id) ON DELETE SET NULL,  -- NULL until first login
+    phone           text NOT NULL,
+    name            text NOT NULL DEFAULT '',
+    role            text NOT NULL CHECK (role IN ('owner','co_owner','staff')),
+    linked_staff_id uuid REFERENCES staff(id) ON DELETE SET NULL,
+    status          text NOT NULL DEFAULT 'invited' CHECK (status IN ('invited','active')),
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX business_members_biz_idx ON business_members(business_id);
+CREATE UNIQUE INDEX business_members_biz_phone_idx ON business_members(business_id, phone);
+CREATE INDEX business_members_phone_idx ON business_members(phone);
+
 -- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ payment_methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 CREATE TABLE payment_methods (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,6 +84,7 @@ CREATE TABLE customers (
     phone                     text,                          -- E.164 when known
     state_code                text,                          -- NULL â‡’ defaults to business state
     outstanding_balance_paise bigint NOT NULL DEFAULT 0,
+    created_by_member_id      uuid REFERENCES business_members(id) ON DELETE SET NULL,
     created_at                timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX customers_biz_idx ON customers(business_id);
@@ -129,6 +146,7 @@ CREATE TABLE bills (
     note                  text,
     pdf_url               text,
     request_id            uuid NOT NULL,
+    performed_by_member_id uuid REFERENCES business_members(id) ON DELETE SET NULL,
     created_at            timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX bills_idempotency_idx ON bills(business_id, request_id);
@@ -166,6 +184,8 @@ CREATE TABLE khata_entries (
     type         text NOT NULL CHECK (type IN ('credit','payment')),
     amount_paise bigint NOT NULL CHECK (amount_paise > 0),
     note         text NOT NULL DEFAULT '',
+    performed_by_member_id uuid REFERENCES business_members(id) ON DELETE SET NULL,
+    created_by_member_id   uuid REFERENCES business_members(id) ON DELETE SET NULL,
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX khata_entries_cust_idx ON khata_entries(business_id, customer_id, created_at DESC);
@@ -180,6 +200,7 @@ CREATE TABLE payments (
     customer_id  uuid REFERENCES customers(id),
     mode         text NOT NULL CHECK (mode IN ('CASH','UPI')),
     amount_paise bigint NOT NULL CHECK (amount_paise > 0),
+    performed_by_member_id uuid REFERENCES business_members(id) ON DELETE SET NULL,
     created_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX payments_biz_created_idx ON payments(business_id, created_at DESC);
@@ -234,7 +255,7 @@ DECLARE t text;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'payment_methods','customers','inventory_items','staff','bills','bill_items',
-    'khata_entries','payments','stock_ledger','staff_ledger','attendance'
+    'khata_entries','payments','stock_ledger','staff_ledger','attendance','business_members'
   ] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', t);

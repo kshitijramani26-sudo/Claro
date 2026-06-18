@@ -5,7 +5,8 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Response
 
-from ..auth import CurrentBusiness, get_current_business
+from ..auth import CurrentBusiness
+from ..permissions import require_manager
 from ..db import biz_txn
 from ..schemas import AnalyticsRead, BestSellingRead, Period, TopCustomerRead
 from ..util import IST, ist_day_start_utc, ist_month_start_utc, ist_now, ist_today
@@ -60,7 +61,7 @@ def _prev_window(period: Period) -> tuple[datetime, datetime]:
 
 
 @router.get("", response_model=AnalyticsRead)
-async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get_current_business)) -> AnalyticsRead:
+async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(require_manager)) -> AnalyticsRead:
     start = _window(period)
     prev_start, prev_end = _prev_window(period)
     async with biz_txn(biz.id) as conn:
@@ -199,7 +200,7 @@ async def analytics(period: Period = "today", biz: CurrentBusiness = Depends(get
 
 
 @router.get("/best-selling", response_model=list[BestSellingRead])
-async def best_selling(period: Period = "month", limit: int = 4, biz: CurrentBusiness = Depends(get_current_business)) -> list[BestSellingRead]:
+async def best_selling(period: Period = "month", limit: int = 4, biz: CurrentBusiness = Depends(require_manager)) -> list[BestSellingRead]:
     start = _window(period)
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(
@@ -215,7 +216,7 @@ async def best_selling(period: Period = "month", limit: int = 4, biz: CurrentBus
 
 
 @router.get("/export")
-async def export_csv(period: Period = "month", biz: CurrentBusiness = Depends(get_current_business)) -> Response:
+async def export_csv(period: Period = "month", biz: CurrentBusiness = Depends(require_manager)) -> Response:
     start = _window(period)
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(

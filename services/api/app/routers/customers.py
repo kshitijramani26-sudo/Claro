@@ -5,22 +5,41 @@ from fastapi import APIRouter, Depends
 
 from ..auth import CurrentBusiness, get_current_business
 from ..db import biz_txn
+from ..errors import NotFoundError
 from ..schemas import ActivityRead, CustomerRead, PrescriptionCreate, PrescriptionRead
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 
+async def _assert_customer_visible(conn, biz: CurrentBusiness, customer_id: UUID) -> None:
+    """Staff may only touch customers they created (server-enforced)."""
+    if not biz.is_staff:
+        ok = await conn.fetchval("SELECT 1 FROM customers WHERE id = $1 AND business_id = $2", customer_id, biz.id)
+    else:
+        ok = await conn.fetchval(
+            "SELECT 1 FROM customers WHERE id = $1 AND business_id = $2 AND created_by_member_id = $3",
+            customer_id, biz.id, biz.member_id,
+        )
+    if ok is None:
+        raise NotFoundError("Customer not found")
+
+
 @router.get("/search", response_model=list[CustomerRead])
 async def search(q: str = "", limit: int = 8, biz: CurrentBusiness = Depends(get_current_business)) -> list[CustomerRead]:
     q = q.strip()
+    # Staff see only the customers they created.
+    staff_scope = "" if not biz.is_staff else " AND created_by_member_id = $4"
+    args: list = [biz.id, q, max(1, min(limit, 25))]
+    if biz.is_staff:
+        args.append(biz.member_id)
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(
-            """SELECT id, name, COALESCE(phone, '') AS phone, state_code, outstanding_balance_paise
+            f"""SELECT id, name, COALESCE(phone, '') AS phone, state_code, outstanding_balance_paise
                FROM customers
                WHERE business_id = $1 AND ($2 = '' OR lower(name) LIKE lower($2) || '%'
-                                           OR phone LIKE '%' || $2 || '%')
+                                           OR phone LIKE '%' || $2 || '%'){staff_scope}
                ORDER BY name LIMIT $3""",
-            biz.id, q, max(1, min(limit, 25)),
+            *args,
         )
     return [
         CustomerRead(id=r["id"], name=r["name"], phone=r["phone"], state_code=r["state_code"],
@@ -34,6 +53,7 @@ async def customer_activity(customer_id: UUID, limit: int = 50, biz: CurrentBusi
     """A customer's full history — their cash/UPI bills + khata credits/payments."""
     limit = max(1, min(limit, 200))
     async with biz_txn(biz.id) as conn:
+        await _assert_customer_visible(conn, biz, customer_id)
         rows = await conn.fetch(
             """
             (SELECT 'bill-' || b.id AS id, b.invoice_no AS title, b.payment_mode AS sub,

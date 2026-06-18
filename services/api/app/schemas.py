@@ -56,6 +56,24 @@ class BusinessRead(BaseModel):
     low_stock_default: int
     email: str
     phone: str  # from the login user
+    role: str = "owner"  # caller's role in this business: owner | co_owner | staff
+
+
+# ── team members ──
+class MemberCreate(BaseModel):
+    name: str = Field(min_length=1)
+    phone: str = Field(min_length=4)
+    role: Literal["co_owner", "staff"]
+
+
+class MemberRead(BaseModel):
+    id: UUID
+    name: str
+    phone: str
+    role: str
+    status: str
+    linked_staff_id: UUID | None = None
+    is_self: bool = False
 
 
 # ── payment methods ──
@@ -236,6 +254,9 @@ class BillRead(BaseModel):
     balance_due_paise: int
     created_at: datetime
     items: list[BillItemRead]
+    # Audit — who created the bill (shown to owner/co-owner).
+    billed_by_name: str = ""
+    performed_by_member_id: UUID | None = None
     # Optical fields
     prescription: PrescriptionRead | None = None
     order_status: str | None = None

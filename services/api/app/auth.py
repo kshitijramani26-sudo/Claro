@@ -37,6 +37,17 @@ class CurrentBusiness:
     id: UUID
     user: CurrentUser
     row: dict
+    role: str = "owner"               # 'owner' | 'co_owner' | 'staff'
+    member_id: UUID | None = None     # the caller's business_members row
+    linked_staff_id: UUID | None = None  # for staff members → their staff record
+
+    @property
+    def is_staff(self) -> bool:
+        return self.role == "staff"
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role == "owner"
 
 
 async def _jwks() -> dict:
@@ -104,8 +115,39 @@ async def get_current_user(authorization: str = Header(default="")) -> CurrentUs
 
 
 async def get_current_business(user: CurrentUser = Depends(get_current_user)) -> CurrentBusiness:
+    """Resolve the caller's business AND role. Owner = owns a business; otherwise a
+    member is matched by phone (their user_id + status are linked on first login).
+    The owner is also materialised as a 'owner' member row for attribution/audit."""
     async with admin_txn() as conn:
-        row = await conn.fetchrow("SELECT * FROM businesses WHERE user_id = $1", user.id)
-    if row is None:
-        raise NoBusinessError()
-    return CurrentBusiness(id=row["id"], user=user, row=dict(row))
+        biz = await conn.fetchrow("SELECT * FROM businesses WHERE user_id = $1", user.id)
+        if biz is not None:
+            member = await conn.fetchrow(
+                """INSERT INTO business_members (business_id, user_id, phone, name, role, status)
+                   VALUES ($1, $2, $3, $4, 'owner', 'active')
+                   ON CONFLICT (business_id, phone)
+                   DO UPDATE SET user_id = EXCLUDED.user_id, role = 'owner', status = 'active'
+                   RETURNING id, linked_staff_id""",
+                biz["id"], user.id, user.phone, biz["owner_name"],
+            )
+            return CurrentBusiness(
+                id=biz["id"], user=user, row=dict(biz),
+                role="owner", member_id=member["id"], linked_staff_id=None,
+            )
+
+        m = await conn.fetchrow(
+            "SELECT * FROM business_members WHERE phone = $1 ORDER BY created_at LIMIT 1", user.phone
+        )
+        if m is None:
+            raise NoBusinessError()
+        if m["user_id"] is None or m["status"] != "active":
+            m = await conn.fetchrow(
+                "UPDATE business_members SET user_id = $1, status = 'active' WHERE id = $2 RETURNING *",
+                user.id, m["id"],
+            )
+        biz = await conn.fetchrow("SELECT * FROM businesses WHERE id = $1", m["business_id"])
+        if biz is None:
+            raise NoBusinessError()
+        return CurrentBusiness(
+            id=biz["id"], user=user, row=dict(biz),
+            role=m["role"], member_id=m["id"], linked_staff_id=m["linked_staff_id"],
+        )

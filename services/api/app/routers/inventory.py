@@ -24,7 +24,12 @@ async def list_inventory(biz: CurrentBusiness = Depends(get_current_business)) -
                 ORDER BY (tracked AND qty_on_hand <= low_stock_threshold) DESC, name""",
             biz.id,
         )
-    return [InventoryRead(**dict(r)) for r in rows]
+    # Staff may see item name, availability and selling price — never cost price.
+    items = [InventoryRead(**dict(r)) for r in rows]
+    if biz.is_staff:
+        for it in items:
+            it.cost_paise = 0
+    return items
 
 
 @router.get("/stats", response_model=InventoryStatsRead)
@@ -39,7 +44,9 @@ async def inventory_stats(biz: CurrentBusiness = Depends(get_current_business)) 
                FROM inventory_items WHERE business_id = $1""",
             biz.id,
         )
-    return InventoryStatsRead(total_value_paise=row["total_value"], skus=row["skus"], low_count=row["low_count"])
+    # Staff must not see total stock value (cost/capital) — return 0 for them.
+    total_value = 0 if biz.is_staff else row["total_value"]
+    return InventoryStatsRead(total_value_paise=total_value, skus=row["skus"], low_count=row["low_count"])
 
 
 @router.post("", response_model=InventoryRead)

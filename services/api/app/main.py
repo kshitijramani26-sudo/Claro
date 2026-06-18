@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .db import close_pool, init_pool
 from .errors import install_error_handlers
 from .migrate import run_startup_migrations
-from .routers import auth, analytics, bills, business, customers, home, inventory, khata, payment_methods, staff
+from .routers import auth, analytics, bills, business, customers, home, inventory, khata, payment_methods, staff, team
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(khata.router)
 app.include_router(staff.router)
 app.include_router(analytics.router)
 app.include_router(customers.router)
+app.include_router(team.router)
 
 
 @app.get("/health")

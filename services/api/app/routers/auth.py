@@ -105,7 +105,20 @@ async def verify(payload: VerifyRequest, request: Request, settings: Settings = 
             """,
             uuid.uuid4(), phone,
         )
-        
+        # Branch login: owner (has a business) | invited/active member (skip
+        # onboarding) | unknown phone (full owner onboarding).
+        owns = await conn.fetchrow("SELECT id FROM businesses WHERE user_id = $1", row["id"])
+        if owns is not None:
+            role, needs_onboarding, member_name = "owner", False, None
+        else:
+            member = await conn.fetchrow(
+                "SELECT name, role FROM business_members WHERE phone = $1 ORDER BY created_at LIMIT 1", phone
+            )
+            if member is not None:
+                role, needs_onboarding, member_name = member["role"], False, member["name"]
+            else:
+                role, needs_onboarding, member_name = None, True, None
+
     # Generate signed HS256 JWT
     secret = settings.supabase_jwt_secret or "dummy_secret_for_dev_only"
     jwt_payload = {
@@ -123,5 +136,8 @@ async def verify(payload: VerifyRequest, request: Request, settings: Settings = 
         "user": {
             "id": str(row["id"]),
             "phone": row["phone"]
-        }
+        },
+        "role": role,                      # 'owner' | 'co_owner' | 'staff' | None(unknown)
+        "needs_onboarding": needs_onboarding,
+        "member_name": member_name,
     }

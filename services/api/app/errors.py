@@ -82,6 +82,15 @@ class AuthError(DomainError):
     code = "unauthorized"
 
 
+class ForbiddenError(DomainError):
+    """The caller's role isn't allowed to perform this action (server-enforced)."""
+    status = 403
+    code = "forbidden"
+
+    def __init__(self, message: str = "You don't have permission to do this") -> None:
+        super().__init__(message)
+
+
 def install_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:

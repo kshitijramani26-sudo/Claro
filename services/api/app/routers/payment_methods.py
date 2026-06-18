@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from ..auth import CurrentBusiness, get_current_business
+from ..permissions import require_manager
 from ..db import biz_txn
 from ..errors import DomainError, NotFoundError
 from ..schemas import PaymentMethodCreate, PaymentMethodPatch, PaymentMethodRead
@@ -24,7 +25,7 @@ async def list_methods(biz: CurrentBusiness = Depends(get_current_business)) -> 
 
 
 @router.post("", response_model=PaymentMethodRead)
-async def create_method(payload: PaymentMethodCreate, biz: CurrentBusiness = Depends(get_current_business)) -> PaymentMethodRead:
+async def create_method(payload: PaymentMethodCreate, biz: CurrentBusiness = Depends(require_manager)) -> PaymentMethodRead:
     if not payload.upi_id and not payload.qr_image_url:
         raise DomainError("Provide a UPI ID or a QR image")
     async with biz_txn(biz.id) as conn:
@@ -41,7 +42,7 @@ async def create_method(payload: PaymentMethodCreate, biz: CurrentBusiness = Dep
 
 
 @router.patch("/{method_id}", response_model=PaymentMethodRead)
-async def patch_method(method_id: UUID, payload: PaymentMethodPatch, biz: CurrentBusiness = Depends(get_current_business)) -> PaymentMethodRead:
+async def patch_method(method_id: UUID, payload: PaymentMethodPatch, biz: CurrentBusiness = Depends(require_manager)) -> PaymentMethodRead:
     updates = payload.model_dump(exclude_none=True)
     if not updates:
         raise DomainError("Nothing to update")
@@ -57,7 +58,7 @@ async def patch_method(method_id: UUID, payload: PaymentMethodPatch, biz: Curren
 
 
 @router.patch("/{method_id}/set-default", response_model=PaymentMethodRead)
-async def set_default(method_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> PaymentMethodRead:
+async def set_default(method_id: UUID, biz: CurrentBusiness = Depends(require_manager)) -> PaymentMethodRead:
     async with biz_txn(biz.id) as conn:
         ok = await conn.fetchval(
             "SELECT 1 FROM payment_methods WHERE id = $1 AND business_id = $2", method_id, biz.id
@@ -72,7 +73,7 @@ async def set_default(method_id: UUID, biz: CurrentBusiness = Depends(get_curren
 
 
 @router.delete("/{method_id}")
-async def delete_method(method_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
+async def delete_method(method_id: UUID, biz: CurrentBusiness = Depends(require_manager)) -> dict:
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
             "DELETE FROM payment_methods WHERE id = $1 AND business_id = $2 RETURNING is_default", method_id, biz.id

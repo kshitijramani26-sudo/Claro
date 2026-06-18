@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from ..auth import CurrentBusiness, get_current_business
+from ..permissions import require_manager
 from ..db import biz_txn
 from ..errors import DomainError, NotFoundError
 from ..schemas import (
@@ -26,19 +27,22 @@ _COLS = "id, name, role, COALESCE(phone, '') AS phone, salary_paise, advance_out
 
 @router.get("", response_model=list[StaffRead])
 async def list_staff(biz: CurrentBusiness = Depends(get_current_business)) -> list[StaffRead]:
+    # A staff member sees ONLY their own record (attendance/advances/salary).
+    staff_scope = "" if not biz.is_staff else " AND staff.id = $3"
+    args: list = [biz.id, ist_today()] + ([biz.linked_staff_id] if biz.is_staff else [])
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(
             f"""SELECT {_COLS},
                        COALESCE((SELECT a.status = 'present' FROM attendance a
                                  WHERE a.staff_id = staff.id AND a.date = $2), true) AS present_today
-                FROM staff WHERE business_id = $1 ORDER BY created_at""",
-            biz.id, ist_today(),
+                FROM staff WHERE business_id = $1{staff_scope} ORDER BY created_at""",
+            *args,
         )
     return [StaffRead(**dict(r)) for r in rows]
 
 
 @router.post("", response_model=StaffRead)
-async def create_staff(payload: StaffCreate, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+async def create_staff(payload: StaffCreate, biz: CurrentBusiness = Depends(require_manager)) -> StaffRead:
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
             f"""INSERT INTO staff (business_id, name, role, phone, salary_paise)
@@ -50,7 +54,7 @@ async def create_staff(payload: StaffCreate, biz: CurrentBusiness = Depends(get_
 
 
 @router.patch("/{staff_id}", response_model=StaffRead)
-async def patch_staff(staff_id: UUID, payload: StaffPatch, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+async def patch_staff(staff_id: UUID, payload: StaffPatch, biz: CurrentBusiness = Depends(require_manager)) -> StaffRead:
     updates = payload.model_dump(exclude_none=True)
     if "phone" in updates:
         updates["phone"] = normalize_phone(updates["phone"]) or None
@@ -71,7 +75,7 @@ async def patch_staff(staff_id: UUID, payload: StaffPatch, biz: CurrentBusiness 
 
 
 @router.delete("/{staff_id}")
-async def delete_staff(staff_id: UUID, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
+async def delete_staff(staff_id: UUID, biz: CurrentBusiness = Depends(require_manager)) -> dict:
     async with biz_txn(biz.id) as conn:
         deleted = await conn.fetchval(
             "DELETE FROM staff WHERE id = $1 AND business_id = $2 RETURNING id", staff_id, biz.id
@@ -82,7 +86,7 @@ async def delete_staff(staff_id: UUID, biz: CurrentBusiness = Depends(get_curren
 
 
 @router.post("/{staff_id}/attendance")
-async def mark_attendance(staff_id: UUID, payload: AttendanceCreate, biz: CurrentBusiness = Depends(get_current_business)) -> dict:
+async def mark_attendance(staff_id: UUID, payload: AttendanceCreate, biz: CurrentBusiness = Depends(require_manager)) -> dict:
     day = date.fromisoformat(payload.date) if payload.date else ist_today()
     async with biz_txn(biz.id) as conn:
         ok = await conn.fetchval("SELECT 1 FROM staff WHERE id = $1 AND business_id = $2", staff_id, biz.id)
@@ -125,17 +129,17 @@ async def _ledger_mutation(biz: CurrentBusiness, staff_id: UUID, kind: str, payl
 
 
 @router.post("/{staff_id}/advance", response_model=StaffRead)
-async def add_advance(staff_id: UUID, payload: AdvanceCreate, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+async def add_advance(staff_id: UUID, payload: AdvanceCreate, biz: CurrentBusiness = Depends(require_manager)) -> StaffRead:
     return await _ledger_mutation(biz, staff_id, "advance", payload)
 
 
 @router.post("/{staff_id}/repayment", response_model=StaffRead)
-async def add_repayment(staff_id: UUID, payload: AdvanceCreate, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+async def add_repayment(staff_id: UUID, payload: AdvanceCreate, biz: CurrentBusiness = Depends(require_manager)) -> StaffRead:
     return await _ledger_mutation(biz, staff_id, "repayment", payload)
 
 
 @router.post("/{staff_id}/pay-salary", response_model=StaffRead)
-async def pay_salary(staff_id: UUID, payload: SalaryPayCreate, biz: CurrentBusiness = Depends(get_current_business)) -> StaffRead:
+async def pay_salary(staff_id: UUID, payload: SalaryPayCreate, biz: CurrentBusiness = Depends(require_manager)) -> StaffRead:
     """Record a month-end salary payment of the remaining amount (salary − advance),
     adjust the outstanding advance against it, and start the next month fresh."""
     async with biz_txn(biz.id) as conn:
@@ -167,6 +171,9 @@ async def pay_salary(staff_id: UUID, payload: SalaryPayCreate, biz: CurrentBusin
 
 @router.get("/{staff_id}", response_model=StaffDetailRead)
 async def staff_detail(staff_id: UUID, days: int = 14, biz: CurrentBusiness = Depends(get_current_business)) -> StaffDetailRead:
+    # Staff may only open their own profile.
+    if biz.is_staff and staff_id != biz.linked_staff_id:
+        raise NotFoundError("Staff member not found")
     today = ist_today()
     days = max(7, min(days, 31))
     async with biz_txn(biz.id) as conn:

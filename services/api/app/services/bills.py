@@ -26,13 +26,17 @@ _BILL_COLS = """
     b.igst_paise, b.tax_total_paise, b.grand_total_paise, b.payment_mode,
     b.payment_method_id, b.customer_id, b.staff_id, b.note,
     b.amount_received_paise, b.balance_due_paise, b.created_at,
-    COALESCE(c.name, '') AS customer_name, COALESCE(c.phone, '') AS customer_phone
+    COALESCE(c.name, '') AS customer_name, COALESCE(c.phone, '') AS customer_phone,
+    COALESCE(bm.name, '') AS billed_by_name, b.performed_by_member_id
 """
 
 
 async def _read_bill(conn: asyncpg.Connection, bill_id: UUID) -> BillRead:
     bill = await conn.fetchrow(
-        f"SELECT {_BILL_COLS}, b.order_status, b.delivery_date FROM bills b LEFT JOIN customers c ON c.id = b.customer_id WHERE b.id = $1",
+        f"""SELECT {_BILL_COLS}, b.order_status, b.delivery_date FROM bills b
+            LEFT JOIN customers c ON c.id = b.customer_id
+            LEFT JOIN business_members bm ON bm.id = b.performed_by_member_id
+            WHERE b.id = $1""",
         bill_id,
     )
     if bill is None:
@@ -56,7 +60,11 @@ async def _read_bill(conn: asyncpg.Connection, bill_id: UUID) -> BillRead:
 
 async def get_bill(biz: CurrentBusiness, bill_id: UUID) -> BillRead:
     async with biz_txn(biz.id) as conn:
-        return await _read_bill(conn, bill_id)
+        bill = await _read_bill(conn, bill_id)
+        # Staff may only open their own bills (server-enforced).
+        if biz.is_staff and bill.performed_by_member_id != biz.member_id:
+            raise NotFoundError("Bill not found")
+        return bill
 
 
 async def void_bill(biz: CurrentBusiness, bill_id: UUID) -> None:
@@ -113,17 +121,17 @@ async def _resolve_customer(
         return None
     if phone:
         row = await conn.fetchrow(
-            """INSERT INTO customers (business_id, name, phone, state_code)
-               VALUES ($1, $2, $3, $4)
+            """INSERT INTO customers (business_id, name, phone, state_code, created_by_member_id)
+               VALUES ($1, $2, $3, $4, $5)
                ON CONFLICT (business_id, phone) WHERE phone IS NOT NULL DO UPDATE
                  SET name = CASE WHEN EXCLUDED.name <> '' THEN EXCLUDED.name ELSE customers.name END
                RETURNING id""",
-            biz.id, name or phone, phone, payload.customer_state_code,
+            biz.id, name or phone, phone, payload.customer_state_code, biz.member_id,
         )
     else:
         row = await conn.fetchrow(
-            """INSERT INTO customers (business_id, name, state_code) VALUES ($1, $2, $3) RETURNING id""",
-            biz.id, name, payload.customer_state_code,
+            """INSERT INTO customers (business_id, name, state_code, created_by_member_id) VALUES ($1, $2, $3, $4) RETURNING id""",
+            biz.id, name, payload.customer_state_code, biz.member_id,
         )
     return row["id"]
 
@@ -256,21 +264,25 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
         )
         invoice_no = f"{seq['invoice_prefix']}{seq['seq']}"
 
+        # A staff member's own bills attribute to their linked staff record (feeds
+        # staff performance) and record who performed it (audit + staff scoping).
+        effective_staff_id = payload.staff_id or biz.linked_staff_id
         bill_id = await conn.fetchval(
             """INSERT INTO bills (business_id, customer_id, staff_id, gst_mode, place_of_supply_state,
                                   tax_kind, subtotal_paise, discount_paise, taxable_paise, cgst_paise,
                                   sgst_paise, igst_paise, tax_total_paise, grand_total_paise,
                                   payment_mode, payment_method_id, invoice_no, note, request_id,
-                                  amount_received_paise, balance_due_paise, order_status, delivery_date)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+                                  amount_received_paise, balance_due_paise, order_status, delivery_date,
+                                  performed_by_member_id)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
                RETURNING id""",
-            biz.id, customer_id, payload.staff_id, totals.gst_mode,
+            biz.id, customer_id, effective_staff_id, totals.gst_mode,
             place if totals.gst_mode == "gst" else "",
             totals.tax_kind, totals.subtotal_paise, totals.discount_paise, totals.taxable_paise,
             totals.cgst_paise, totals.sgst_paise, totals.igst_paise, totals.tax_total_paise,
             totals.grand_total_paise, payload.payment_mode, payload.payment_method_id,
             invoice_no, payload.note, payload.request_id, received, balance,
-            payload.order_status, delivery_dt,
+            payload.order_status, delivery_dt, biz.member_id,
         )
         await conn.executemany(
             """INSERT INTO bill_items (bill_id, business_id, inventory_item_id, name, hsn_code, qty,
@@ -342,15 +354,16 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
         if payload.payment_mode == "CREDIT":
             if received > 0:
                 await conn.execute(
-                    """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise)
-                       VALUES ($1, $2, $3, $4, $5)""",
-                    biz.id, bill_id, customer_id, received_mode, received,
+                    """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise, performed_by_member_id)
+                       VALUES ($1, $2, $3, $4, $5, $6)""",
+                    biz.id, bill_id, customer_id, received_mode, received, biz.member_id,
                 )
             if balance > 0:
                 await conn.execute(
-                    """INSERT INTO khata_entries (business_id, customer_id, bill_id, type, amount_paise, note)
-                       VALUES ($1, $2, $3, 'credit', $4, $5)""",
-                    biz.id, customer_id, bill_id, balance, payload.note or invoice_no,
+                    """INSERT INTO khata_entries (business_id, customer_id, bill_id, type, amount_paise, note,
+                                                  created_by_member_id, performed_by_member_id)
+                       VALUES ($1, $2, $3, 'credit', $4, $5, $6, $6)""",
+                    biz.id, customer_id, bill_id, balance, payload.note or invoice_no, biz.member_id,
                 )
                 await conn.execute(
                     "UPDATE customers SET outstanding_balance_paise = outstanding_balance_paise + $3 WHERE id = $1 AND business_id = $2",
@@ -358,9 +371,9 @@ async def _confirm_bill_txn(biz: CurrentBusiness, payload: BillCreate) -> BillRe
                 )
         else:
             await conn.execute(
-                """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise)
-                   VALUES ($1, $2, $3, $4, $5)""",
-                biz.id, bill_id, customer_id, payload.payment_mode, grand,
+                """INSERT INTO payments (business_id, bill_id, customer_id, mode, amount_paise, performed_by_member_id)
+                   VALUES ($1, $2, $3, $4, $5, $6)""",
+                biz.id, bill_id, customer_id, payload.payment_mode, grand, biz.member_id,
             )
 
         # ── ENTRY 3: staff attribution ──

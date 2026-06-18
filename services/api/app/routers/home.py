@@ -16,27 +16,36 @@ async def summary_today(biz: CurrentBusiness = Depends(get_current_business)) ->
     day0 = ist_day_start_utc(today)
     yest0 = ist_day_start_utc(today - timedelta(days=1))
     month0 = ist_month_start_utc()
+    # Staff see only their own numbers (own bills + own customers' khata); top-staff
+    # is a management metric and is hidden for them.
+    mid = biz.member_id if biz.is_staff else None
     async with biz_txn(biz.id) as conn:
         row = await conn.fetchrow(
             """
             SELECT
               COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $2), 0)            AS todays_sales,
+                        WHERE business_id = $1 AND created_at >= $2
+                          AND ($5::uuid IS NULL OR performed_by_member_id = $5)), 0)  AS todays_sales,
               (SELECT count(*) FROM bills
-               WHERE business_id = $1 AND created_at >= $2)                          AS todays_bills,
+               WHERE business_id = $1 AND created_at >= $2
+                 AND ($5::uuid IS NULL OR performed_by_member_id = $5))               AS todays_bills,
               COALESCE((SELECT sum(outstanding_balance_paise) FROM customers
-                        WHERE business_id = $1 AND outstanding_balance_paise > 0), 0) AS pending_khata,
+                        WHERE business_id = $1 AND outstanding_balance_paise > 0
+                          AND ($5::uuid IS NULL OR created_by_member_id = $5)), 0)     AS pending_khata,
               (SELECT count(*) FROM inventory_items
-               WHERE business_id = $1 AND qty_on_hand <= low_stock_threshold)        AS low_stock,
+               WHERE business_id = $1 AND tracked AND qty_on_hand <= low_stock_threshold) AS low_stock,
               COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $3), 0)             AS month_sales,
-              COALESCE((SELECT s.name FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
+                        WHERE business_id = $1 AND created_at >= $3
+                          AND ($5::uuid IS NULL OR performed_by_member_id = $5)), 0)  AS month_sales,
+              CASE WHEN $5::uuid IS NOT NULL THEN ''
+                   ELSE COALESCE((SELECT s.name FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
                         WHERE l.business_id = $1 AND l.type = 'sale_attrib' AND l.created_at >= $3
-                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') AS top_staff,
+                        GROUP BY s.name ORDER BY sum(l.amount_paise) DESC LIMIT 1), '') END AS top_staff,
               COALESCE((SELECT sum(grand_total_paise) FROM bills
-                        WHERE business_id = $1 AND created_at >= $4 AND created_at < $2), 0) AS yesterday_sales
+                        WHERE business_id = $1 AND created_at >= $4 AND created_at < $2
+                          AND ($5::uuid IS NULL OR performed_by_member_id = $5)), 0) AS yesterday_sales
             """,
-            biz.id, day0, month0, yest0,
+            biz.id, day0, month0, yest0, mid,
         )
     return SummaryRead(
         todays_sales_paise=row["todays_sales"], todays_bills=row["todays_bills"],
@@ -49,6 +58,9 @@ async def summary_today(biz: CurrentBusiness = Depends(get_current_business)) ->
 @router.get("/activity", response_model=list[ActivityRead])
 async def activity(limit: int = 20, biz: CurrentBusiness = Depends(get_current_business)) -> list[ActivityRead]:
     limit = max(1, min(limit, 100))
+    # Staff see only their own bills + their own customers' khata; staff-ledger
+    # (advances/salary) is management-only and excluded for them.
+    mid = biz.member_id if biz.is_staff else None
     async with biz_txn(biz.id) as conn:
         rows = await conn.fetch(
             """
@@ -57,7 +69,8 @@ async def activity(limit: int = 20, biz: CurrentBusiness = Depends(get_current_b
                     b.grand_total_paise AS amount, 'sale' AS kind, b.created_at AS at,
                     b.id::text AS bill_id
              FROM bills b LEFT JOIN staff s ON s.id = b.staff_id
-             WHERE b.business_id = $1 AND b.payment_mode IN ('CASH','UPI'))
+             WHERE b.business_id = $1 AND b.payment_mode IN ('CASH','UPI')
+               AND ($2::uuid IS NULL OR b.performed_by_member_id = $2))
             UNION ALL
             (SELECT 'khata-' || k.id, c.name,
                     CASE WHEN k.type = 'credit' THEN 'Credit added · Khata' ELSE 'Settled up' END,
@@ -65,7 +78,8 @@ async def activity(limit: int = 20, biz: CurrentBusiness = Depends(get_current_b
                     CASE WHEN k.type = 'credit' THEN 'credit' ELSE 'settle' END, k.created_at,
                     k.bill_id::text
              FROM khata_entries k JOIN customers c ON c.id = k.customer_id
-             WHERE k.business_id = $1)
+             WHERE k.business_id = $1
+               AND ($2::uuid IS NULL OR k.performed_by_member_id = $2))
             UNION ALL
             (SELECT 'staff-' || l.id, s.name,
                     CASE WHEN l.type = 'advance' THEN 'Advance given · Staff' ELSE 'Salary paid · Staff' END,
@@ -73,10 +87,10 @@ async def activity(limit: int = 20, biz: CurrentBusiness = Depends(get_current_b
                     CASE WHEN l.type = 'advance' THEN 'advance' ELSE 'salary' END, l.created_at,
                     NULL::text
              FROM staff_ledger l JOIN staff s ON s.id = l.staff_id
-             WHERE l.business_id = $1 AND l.type IN ('advance','salary_payment'))
-            ORDER BY at DESC LIMIT $2
+             WHERE l.business_id = $1 AND l.type IN ('advance','salary_payment') AND $2::uuid IS NULL)
+            ORDER BY at DESC LIMIT $3
             """,
-            biz.id, limit,
+            biz.id, mid, limit,
         )
     return [
         ActivityRead(id=r["id"], title=r["title"], sub=r["sub"], amount_paise=r["amount"],
